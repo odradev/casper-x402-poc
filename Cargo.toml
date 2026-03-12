@@ -1,0 +1,40 @@
+[workspace]
+members = ["contract", "facilitator", "demo"]
+resolver = "2"
+
+[workspace.dependencies.odra]
+path = "../odra/odra"
+features = []
+default-features = false
+
+[workspace.dependencies.odra-build]
+path = "../odra/odra-build"
+features = []
+default-features = false
+
+[workspace.dependencies.odra-test]
+path = "../odra/odra-test"
+features = []
+default-features = false
+
+[workspace.dependencies.odra-modules]
+path = "../odra/modules"
+features = []
+default-features = false
+
+[workspace.dependencies.odra-casper-livenet-env]
+path = "../odra/odra-casper/livenet-env"
+features = []
+default-features = false
+
+[workspace.dependencies.odra-cli]
+path = "../odra/odra-cli"
+features = []
+default-features = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.dev.package."*"]
+opt-level = 3

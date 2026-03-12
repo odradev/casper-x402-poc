@@ -1,0 +1,4 @@
+.env
+target
+.node_keys
+resources/*contracts.toml

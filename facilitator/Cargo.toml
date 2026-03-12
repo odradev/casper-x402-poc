@@ -1,0 +1,23 @@
+[package]
+name = "facilitator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "facilitator"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+cep18-x402 = { path = "../contract" }
+odra = { workspace = true }
+odra-casper-livenet-env = { workspace = true}
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+casper-types = "6.1"
+hex = "0.4"
+anyhow = "1"
+thiserror = "1"
+dotenv = "0.15"
