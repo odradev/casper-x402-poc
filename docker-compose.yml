@@ -2,14 +2,21 @@ services:
 
   # ── Casper local network ──────────────────────────────────────────────────
   nctl:
-    image: makesoftware/casper-nctl:v2.1.0
+    image: makesoftware/casper-nctl:v210
     ports:
       - "11101:11101"   # JSON-RPC node-1
       - "14101:14101"   # REST node-1
       - "18101:18101"   # SSE events node-1
     volumes:
       # Expose nctl assets so deployer can read user keys
-      - nctl-assets:/home/casper/casper-node/utils/nctl/assets
+      - nctl-assets:/nctl-assets
+    command:
+      - /bin/bash
+      - -c
+      - |
+        source /home/casper/restart.sh
+        cp -a /home/casper/casper-nctl/assets/. /nctl-assets/
+        sleep infinity
     healthcheck:
       # Wait until node-1 is producing blocks (chain_get_block returns a block)
       test:
@@ -42,7 +49,7 @@ services:
       - deployed:/deployed            # write contract address
     environment:
       - ODRA_CASPER_LIVENET_NODE_ADDRESS=http://nctl:11101
-      - ODRA_CASPER_LIVENET_NODE_EVENTS=http://nctl:18101/events
+      - ODRA_CASPER_LIVENET_EVENTS_URL=http://nctl:18101/events
       - ODRA_CASPER_LIVENET_CHAIN_NAME=casper-net-1
 
   # ── Facilitator HTTP service ──────────────────────────────────────────────

@@ -42,3 +42,27 @@ run-all:
 # Copy .env.example to .env (won't overwrite existing)
 setup:
     @[ -f .env ] && echo ".env already exists, skipping" || cp .env.example .env && echo "Created .env from .env.example"
+
+# Start the full Docker stack (nctl + deployer + facilitator)
+docker-up:
+    docker compose up --build -d
+
+# Stop all Docker services
+docker-down:
+    docker compose down
+
+# Stop all Docker services and remove volumes
+docker-clean:
+    docker compose down -v
+
+# Show Docker service logs (follow mode)
+docker-logs *args:
+    docker compose logs -f {{args}}
+
+# Show status of Docker services
+docker-ps:
+    docker compose ps
+
+# Restart a specific Docker service
+docker-restart service:
+    docker compose restart {{service}}

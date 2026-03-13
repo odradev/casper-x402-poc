@@ -16,7 +16,7 @@ RUN rustup toolchain install nightly-2025-01-01 \
 WORKDIR /src
 
 # Clone odra at the exact version used by the workspace (path = "../odra/...")
-RUN git clone --depth 1 --branch v2.6.0 https://github.com/odradev/odra.git odra
+RUN git clone --depth 1 --branch release/2.6.0 https://github.com/odradev/odra.git odra
 
 # Copy project source
 COPY . casper-x402-poc/
@@ -44,10 +44,12 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=builder /src/casper-x402-poc/target/release/cli /usr/local/bin/cli
 
-# Odra CLI needs Odra.toml + wasm/ next to each other when deploying
-RUN mkdir -p /app/contract/wasm
+# Odra CLI needs Odra.toml + wasm/ next to each other when deploying.
+# It also uses project-root crate (needs Cargo.toml) and writes to resources/.
+RUN mkdir -p /app/contract/wasm /app/contract/resources
 COPY contract/Odra.toml    /app/contract/Odra.toml
 COPY contract/wasm/Cep18X402.wasm /app/contract/wasm/Cep18X402.wasm
+COPY --from=builder /src/casper-x402-poc/Cargo.lock /app/contract/Cargo.lock
 
 COPY docker/deployer-entrypoint.sh /usr/local/bin/deployer-entrypoint.sh
 RUN chmod +x /usr/local/bin/deployer-entrypoint.sh
