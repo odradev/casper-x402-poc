@@ -1,0 +1,70 @@
+services:
+
+  # ── Casper local network ──────────────────────────────────────────────────
+  nctl:
+    image: makesoftware/casper-nctl:v2.1.0
+    ports:
+      - "11101:11101"   # JSON-RPC node-1
+      - "14101:14101"   # REST node-1
+      - "18101:18101"   # SSE events node-1
+    volumes:
+      # Expose nctl assets so deployer can read user keys
+      - nctl-assets:/home/casper/casper-node/utils/nctl/assets
+    healthcheck:
+      # Wait until node-1 is producing blocks (chain_get_block returns a block)
+      test:
+        - "CMD"
+        - "curl"
+        - "-sf"
+        - "-X"
+        - "POST"
+        - "http://localhost:11101/rpc"
+        - "-H"
+        - "Content-Type: application/json"
+        - "-d"
+        - '{"jsonrpc":"2.0","id":1,"method":"chain_get_block","params":{}}'
+      interval: 10s
+      timeout: 8s
+      retries: 40
+      start_period: 120s
+
+  # ── One-shot deployer ─────────────────────────────────────────────────────
+  deployer:
+    build:
+      context: .
+      target: deployer
+    depends_on:
+      nctl:
+        condition: service_healthy
+    volumes:
+      - nctl-assets:/nctl-assets:ro   # read user keys
+      - keys:/keys                    # write copied keys for facilitator
+      - deployed:/deployed            # write contract address
+    environment:
+      - ODRA_CASPER_LIVENET_NODE_ADDRESS=http://nctl:11101
+      - ODRA_CASPER_LIVENET_NODE_EVENTS=http://nctl:18101/events
+      - ODRA_CASPER_LIVENET_CHAIN_NAME=casper-net-1
+
+  # ── Facilitator HTTP service ──────────────────────────────────────────────
+  facilitator:
+    build:
+      context: .
+      target: facilitator
+    depends_on:
+      deployer:
+        condition: service_completed_successfully
+    volumes:
+      - keys:/keys:ro         # user-1 secret key for on-chain calls
+      - deployed:/deployed:ro # contract package hash written by deployer
+    ports:
+      - "3001:3001"
+    environment:
+      - ODRA_CASPER_LIVENET_NODE_ADDRESS=http://nctl:11101
+      - ODRA_CASPER_LIVENET_NODE_EVENTS=http://nctl:18101/events
+      - ODRA_CASPER_LIVENET_CHAIN_NAME=casper-net-1
+      - PORT=3001
+
+volumes:
+  nctl-assets:   # nctl network assets (keys, configs)
+  keys:          # user-1 and user-2 secret keys (written by deployer)
+  deployed:      # contract_package_hash file (written by deployer)
