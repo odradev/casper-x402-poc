@@ -1,0 +1,25 @@
+use cep18_x402::cep18_x402::{Cep18X402, Cep18X402InitArgs};
+use odra::{host::Deployer, prelude::Addressable};
+
+fn main() {
+    let env = odra_casper_livenet_env::env();
+
+    env.set_gas(500_000_000_000);
+    let contract = Cep18X402::try_deploy(
+        &env, 
+        Cep18X402InitArgs { 
+            symbol: "X402".to_string(), 
+            name: "Casper X402 Token".to_string(), 
+            decimals: 2, 
+            initial_supply: 1_000_000_000.into()  
+        }
+    );
+    let contract = contract.expect("Failed to deploy contract");
+
+    let address_file_path = std::env::var("X402_CONTRACT_ADDRESS_FILE").expect("Address file path must be set in X402_CONTRACT_ADDRESS_FILE env var");
+    std::fs::write(&address_file_path, contract.address().to_string()).expect("Failed to write contract address to file");
+
+    // Verify deployment by reading the address back and creating a host reference
+    let address_str = std::fs::read_to_string(&address_file_path).expect("Failed to read contract address from file");
+    println!("Deployed contract address: {}", address_str);
+}

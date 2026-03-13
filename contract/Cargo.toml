@@ -16,6 +16,7 @@ odra-build = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 odra-build = { workspace = true }
 odra-cli = { workspace = true }
+odra-casper-livenet-env = { workspace = true}
 
 [[bin]]
 name = "cep18_x402_build_contract"
@@ -30,4 +31,9 @@ test = false
 [[bin]]
 name = "cli"
 path = "bin/cli.rs"
+test = false
+
+[[bin]]
+name = "deployer"
+path = "bin/deployer.rs"
 test = false
