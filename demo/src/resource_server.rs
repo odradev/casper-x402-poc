@@ -7,8 +7,10 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
+use x402_types::{VerifyRequest, VerifyResponse};
 
-use crate::types::{PaymentPayload, PaymentRequired, SettleRequest, SettleResponse};
+use crate::{X_PAYMENT_REQUIRED, types::{PaymentPayload, PaymentRequired, SettleRequest, SettleResponse}};
+
 
 #[derive(Clone)]
 pub struct ResourceServerState {
@@ -49,11 +51,50 @@ async fn handle_data(
                 }
             };
 
-        let settle_req = SettleRequest {
-            payment_payload,
+        let verify_req = VerifyRequest {
+            payment_payload: payment_payload.clone(),
             payment_requirements: state.payment_requirements.clone(),
         };
 
+        let verify_url = format!("{}/verify", state.facilitator_url);
+        println!("[server] Verifying payment with facilitator at {}", verify_url);
+        let resp = match state
+            .http_client
+            .post(&verify_url)
+            .json(&verify_req)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    HeaderMap::new(),
+                    format!("Facilitator unreachable: {}", e),
+                )
+                    .into_response()
+            }
+        };
+
+        let verify_resp: VerifyResponse = match resp.json().await {
+            Ok(r) => r,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    HeaderMap::new(),
+                    format!("Invalid facilitator response: {}", e),
+                )
+                    .into_response()
+            }
+        };
+        if !verify_resp.is_valid {
+            return respond_with_payment_required(&state.payment_requirements).into_response();
+        }
+
+        let settle_req = SettleRequest {
+            payment_payload: payment_payload,
+            payment_requirements: state.payment_requirements.clone(),
+        };
         let settle_url = format!("{}/settle", state.facilitator_url);
         let resp = match state
             .http_client
@@ -133,7 +174,7 @@ fn respond_with_payment_required(requirements: &PaymentRequired) -> impl IntoRes
     let encoded = STANDARD.encode(requirements_json.as_bytes());
 
     let mut headers = HeaderMap::new();
-    headers.insert("x-payment-required", encoded.parse().expect("header value"));
+    headers.insert(X_PAYMENT_REQUIRED, encoded.parse().expect("header value"));
 
     (StatusCode::PAYMENT_REQUIRED, headers, "Payment required".to_string())
 }

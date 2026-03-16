@@ -840,6 +840,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "x402-types",
 ]
 
 [[package]]
@@ -1058,6 +1059,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "x402-types",
 ]
 
 [[package]]
@@ -4197,6 +4199,14 @@ name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "x402-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "yansi"

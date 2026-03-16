@@ -13,6 +13,7 @@ cep18-x402 = { path = "../contract" }
 odra = { workspace = true }
 odra-casper-livenet-env = { workspace = true}
 tokio = { version = "1", features = ["full"] }
+x402-types = { path = "../x402-types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"

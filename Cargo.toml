@@ -1,5 +1,5 @@
 [workspace]
-members = ["contract", "facilitator", "demo"]
+members = ["contract", "x402-types", "facilitator", "demo"]
 resolver = "2"
 
 [workspace.dependencies.odra]
