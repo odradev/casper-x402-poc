@@ -33,6 +33,7 @@ pub struct PaymentPayload {
     pub authorization: CasperAuthorization,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SettleResponse {
     pub success: bool,

@@ -7,4 +7,6 @@ pub enum Error {
     AuthorizationNotYetValid = 3,
     InvalidSignature = 4,
     InvalidFromAddress = 5,
+    InvalidPublicKey = 6,
+    Debug = 999,
 }

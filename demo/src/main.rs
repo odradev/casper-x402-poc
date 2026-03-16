@@ -1,29 +1,21 @@
 mod client;
+mod config;
 mod resource_server;
 mod types;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use casper_types::crypto::{PublicKey, SecretKey};
-use rand::RngCore;
 
+use config::Config;
 use types::{PaymentPayload, PaymentRequired};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = dotenv::dotenv();
 
-    let facilitator_url = std::env::var("FACILITATOR_URL").context("Missing facilitator url")?;
-    let resource_url =
-        std::env::var("RESOURCE_SERVER_URL").context("Missing resource server url")?;
-    let resource_port: u16 = std::env::var("RESOURCE_SERVER_PORT")
-        .context("Missing resources server port")?
-        .parse()        
-        .context("Invalid resource server port")?;
-    
-    let pay_to = std::env::var("PAY_TO").context("Missing payee address")?;
-    // Load (or generate) a demo secret/public key pair
-    let (secret_key, public_key) = load_demo_keys()?;
+    let config = Config::from_env()?;
+    let (secret_key, public_key) = load_demo_keys_from_file(&config.secret_key_path)?;
 
     // Payment requirements for the demo resource server
     let requirements = PaymentRequired {
@@ -31,20 +23,20 @@ async fn main() -> Result<()> {
         scheme: "casper-exact".to_string(),
         network: "casper-test".to_string(),
         asset: "CEP18".to_string(),
-        amount: 1_000_000,
-        pay_to,
+        amount: config.payment_amount,
+        pay_to: config.pay_to.clone(),
         max_timeout_secs: 300,
-        resource: format!("{}/api/data", resource_url),
+        resource: format!("{}/api/data", config.resource_url),
     };
 
     // Start the mock resource server in a background task
     let server_state = resource_server::ResourceServerState {
         payment_requirements: requirements.clone(),
-        facilitator_url: facilitator_url.clone(),
+        facilitator_url: config.facilitator_url.clone(),
         http_client: reqwest::Client::new(),
     };
     let router = resource_server::build_router(server_state);
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", resource_port))
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", config.resource_port))
         .await
         .expect("Failed to bind resource server");
     tokio::spawn(async move {
@@ -55,7 +47,7 @@ async fn main() -> Result<()> {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     let http = reqwest::Client::new();
-    let data_url = format!("{}/api/data", resource_url);
+    let data_url = format!("{}/api/data", config.resource_url);
 
     // --- Step 1: Unauthenticated request → expect 402 ---
     println!("[client] GET {} (unauthenticated)", data_url);
@@ -120,17 +112,13 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Load a demo Ed25519 key pair.
-///
-/// In a real implementation this would read from a PEM file specified in the
-/// environment.  Here we generate a fresh ephemeral key so the demo works
-/// out-of-the-box without any setup.
-fn load_demo_keys() -> Result<(SecretKey, PublicKey)> {
-    // Generate 32 random bytes and create an ephemeral Ed25519 key pair
-    let mut key_bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut key_bytes);
-    let secret_key = SecretKey::ed25519_from_bytes(key_bytes)
-        .map_err(|e| anyhow!("Failed to create Ed25519 key: {:?}", e))?;
+
+fn load_demo_keys_from_file(file_path: &str) -> Result<(SecretKey, PublicKey)> {
+    // In a real implementation this would read from a PEM file specified in the
+    // environment.  Here we generate a fresh ephemeral key so the demo works
+    // out-of-the-box without any setup.
+    let secret_key = SecretKey::from_file(&file_path)
+        .map_err(|e| anyhow!("Failed to parse PEM: {:?}", e))?;
     let public_key = PublicKey::from(&secret_key);
     Ok((secret_key, public_key))
 }

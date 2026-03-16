@@ -7,7 +7,7 @@ edition = "2021"
 name = "facilitator"
 path = "src/main.rs"
 
-[dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 axum = "0.8"
 cep18-x402 = { path = "../contract" }
 odra = { workspace = true }

@@ -594,6 +594,7 @@ dependencies = [
 name = "cep18-x402"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "odra",
  "odra-build",
  "odra-casper-livenet-env",

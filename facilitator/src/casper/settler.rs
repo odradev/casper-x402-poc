@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
-use casper_types::{AsymmetricType, PublicKey, bytesrepr::ToBytes};
+use anyhow::{Context, Result, anyhow};
+use casper_types::{AsymmetricType, PublicKey, bytesrepr::Bytes};
 use cep18_x402::cep18_x402::Cep18X402HostRef;
 use odra::{host::HostRef, prelude::Address};
 
@@ -46,29 +46,34 @@ impl CasperSettler {
         //
         // For now we return a descriptive placeholder so callers can test the
         // full flow without a live Casper node.
-        println!("Simulating transfer_with_authorization: from {}, to {}, amount {}, valid_after {}, valid_before {}, nonce {}, public_key {}, signature {}",
-            from, to, amount, valid_after, valid_before, nonce_hex, public_key_hex, signature_hex);
-
         let address = self.x402_token_address;
         let from = format!("account-hash-{}", from);
         let to = format!("account-hash-{}", to);
-        let nonce_hex = nonce_hex.to_string();
+        let nonce = hex::decode(nonce_hex).context("Invalid nonce hex")?;
         let public_key_hex = public_key_hex.to_string();
-        let signature_hex = signature_hex.to_string();
-
+            println!("Calling transfer_with_authorization with: from={}, to={}, amount={}", from, to, amount
+        );
+        let sig_bytes = hex::decode(signature_hex).context("Invalid signature hex")?;
         tokio::task::spawn_blocking(move || {
-            let mut token = Cep18X402HostRef::new(address, odra_casper_livenet_env::env());
-            token.try_transfer_with_authorization(
+            let env = odra_casper_livenet_env::env();
+            env.set_gas(2_500_000_000);
+            let mut token = Cep18X402HostRef::new(address, env);
+            let result = token.try_transfer_with_authorization(
                 from.parse().ok().context("Invalid from address")?,
                 to.parse().ok().context("Invalid to address")?,
                 amount.into(),
                 valid_after,
                 valid_before,
-                nonce_hex.as_bytes().to_vec(),
+                Bytes::from(nonce),
                 PublicKey::from_hex(&public_key_hex)?,
-                signature_hex.to_bytes()?.into()
-            ).ok().context("Failed to call transfer_with_authorization")?;
+                sig_bytes.into()
+            );
+            if let Err(e) = result {
+                eprintln!("Error calling transfer_with_authorization: {:?}", e);
+                return Err(anyhow!("Contract call failed: {:?}", e));
+            }
 
+            println!("Successfully called transfer_with_authorization with");
             Ok("real-tx-hash-placeholder".to_string())
         }).await?
     }

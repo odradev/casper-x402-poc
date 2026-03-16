@@ -1,4 +1,3 @@
-use odra::casper_types::account::AccountHash;
 use odra::casper_types::bytesrepr::Bytes;
 use odra::casper_types::PublicKey;
 use odra::casper_types::U256;
@@ -48,7 +47,7 @@ pub fn build_message(
 #[odra::module(events = [TransferWithAuthorization], errors = Error)]
 pub struct Cep18X402 {
     token: SubModule<Cep18>,
-    used_nonces: Mapping<(Address, Vec<u8>), bool>,
+    used_nonces: Mapping<(Address, Bytes), bool>,
 }
 
 #[odra::module]
@@ -64,7 +63,7 @@ impl Cep18X402 {
         amount: U256,
         valid_after: u64,
         valid_before: u64,
-        nonce: Vec<u8>,
+        nonce: Bytes,
         public_key: PublicKey,
         signature: Bytes,
     ) {
@@ -91,30 +90,15 @@ impl Cep18X402 {
         }
 
         // 5. Verify that public_key matches the `from` address
-        let derived_hash = AccountHash::from(&public_key);
-        let from_hash = from
-            .as_account_hash()
-            .unwrap_or_else(|| self.env().revert(Error::InvalidFromAddress));
-        if derived_hash != *from_hash {
-            self.env().revert(Error::InvalidSignature);
+        let derived_address = Address::from(public_key.clone());
+        if derived_address != from {
+            self.env().revert(Error::InvalidPublicKey);
         }
 
-        // 6. Build message and verify signature
-        let to_hash = match to.as_account_hash() {
-            Some(h) => *h,
-            None => {
-                // For contract addresses, use the raw bytes
-                let raw = to
-                    .as_contract_package_hash()
-                    .map(|h| h.value())
-                    .unwrap_or([0u8; 32]);
-                AccountHash(raw)
-            }
-        };
-
+        // 6. Build message and verify signature        
         let message = build_message(
-            &from_hash.value(),
-            &to_hash.0,
+            &from.value(),
+            &to.value(),
             &amount,
             valid_after,
             valid_before,
@@ -165,6 +149,7 @@ impl Cep18X402 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use odra::casper_types::account::AccountHash;
     use odra::casper_types::bytesrepr::Bytes;
     use odra::host::{Deployer, HostEnv};
 
@@ -184,6 +169,7 @@ mod tests {
         let env = odra_test::env();
         let sender = env.get_account(0);
         let recipient = env.get_account(1);
+        env.advance_block_time(1000000000000);
 
         let contract = Cep18X402::deploy(
             &env,
@@ -253,7 +239,7 @@ mod tests {
             amount,
             valid_after,
             valid_before,
-            nonce,
+            nonce.into(),
             public_key,
             signature,
         );
@@ -304,7 +290,7 @@ mod tests {
             amount,
             valid_after,
             valid_before,
-            nonce.clone(),
+            nonce.clone().into(),
             public_key.clone(),
             signature.clone(),
         );
@@ -316,7 +302,7 @@ mod tests {
             amount,
             valid_after,
             valid_before,
-            nonce,
+            nonce.into(),
             public_key,
             signature,
         );
@@ -364,7 +350,7 @@ mod tests {
             amount,
             valid_after,
             valid_before,
-            nonce,
+            nonce.into(),
             public_key,
             signature,
         );
@@ -400,7 +386,7 @@ mod tests {
             amount,
             valid_after,
             valid_before,
-            nonce,
+            nonce.into(),
             public_key,
             bad_signature,
         );

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use casper_types::{
     account::AccountHash,
     bytesrepr::ToBytes,
-    crypto::{sign, PublicKey, SecretKey},
+    crypto::{PublicKey, SecretKey, sign},
 };
 use rand::RngCore;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -68,6 +68,8 @@ pub fn sign_authorization(
     let valid_after = now - 1;
     let valid_before = now + requirements.max_timeout_secs;
 
+    println!("[client] Signing authorization with from {}, to {}, amount {}, valid_after {}, valid_before {}, nonce {}",
+        from_hex, requirements.pay_to, requirements.amount, valid_after, valid_before, nonce_hex);
     // Build and sign message
     let message = build_message(
         &from_hash.value(),

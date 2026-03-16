@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 odra = { workspace = true }
 odra-modules = { workspace = true }
+hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 odra-test = { workspace = true }
@@ -19,7 +20,7 @@ odra-cli = { workspace = true }
 odra-casper-livenet-env = { workspace = true}
 
 [[bin]]
-name = "cep18_x402_build_contract"
+name = "casper_x402_poc_build_contract"
 path = "bin/build_contract.rs"
 test = false
 

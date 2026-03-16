@@ -8,7 +8,7 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
 
-use crate::types::{PaymentRequired, SettleRequest, SettleResponse};
+use crate::types::{PaymentPayload, PaymentRequired, SettleRequest, SettleResponse};
 
 #[derive(Clone)]
 pub struct ResourceServerState {
@@ -24,19 +24,6 @@ async fn handle_data(
     if let Some(payment_header) = headers.get("x-payment") {
         // Client has provided payment — forward to facilitator for settlement
         println!("[server] Forwarding payment to facilitator for settlement...");
-
-        // let payload_b64 = match payment_header.to_str() {
-        //     Ok(s) => s,
-        //     Err(_) => {
-        //         return (
-        //             StatusCode::BAD_REQUEST,
-        //             HeaderMap::new(),
-        //             "Invalid X-PAYMENT header".to_string(),
-        //         )
-        //             .into_response()
-        //     }
-        // };
-
         let payload_json = match STANDARD.decode(payment_header.as_bytes()) {
             Ok(b) => b,
             Err(_) => {
@@ -49,7 +36,7 @@ async fn handle_data(
             }
         };
 
-        let payment_payload: crate::types::PaymentPayload =
+        let payment_payload: PaymentPayload =
             match serde_json::from_slice(&payload_json) {
                 Ok(p) => p,
                 Err(e) => {
@@ -85,6 +72,9 @@ async fn handle_data(
                     .into_response()
             }
         };
+
+        println!("[server] Received response from facilitator with status {}", resp.status());
+        println!("[server] Facilitator response headers: {:#?}", resp.headers());
 
         let settle_resp: SettleResponse = match resp.json().await {
             Ok(r) => r,
@@ -126,24 +116,24 @@ async fn handle_data(
         }
     }
 
-    // No payment header — return 402
-    let requirements_json =
-        serde_json::to_string(&state.payment_requirements).unwrap_or_else(|_| "{}".to_string());
-    let encoded = STANDARD.encode(requirements_json.as_bytes());
-
-    let mut resp_headers = HeaderMap::new();
-    resp_headers.insert("x-payment-required", encoded.parse().expect("header value"));
-
-    (
-        StatusCode::PAYMENT_REQUIRED,
-        resp_headers,
-        "Payment required".to_string(),
-    )
-        .into_response()
+    // No payment provided — respond with 402 and payment requirements
+    println!("[server] No payment provided. Responding with 402 and requirements.");
+    respond_with_payment_required(&state.payment_requirements).into_response()
 }
 
 pub fn build_router(state: ResourceServerState) -> Router {
     Router::new()
         .route("/api/data", get(handle_data))
         .with_state(state)
+}
+
+fn respond_with_payment_required(requirements: &PaymentRequired) -> impl IntoResponse {
+    let requirements_json =
+        serde_json::to_string(requirements).unwrap_or_else(|_| "{}".to_string());
+    let encoded = STANDARD.encode(requirements_json.as_bytes());
+
+    let mut headers = HeaderMap::new();
+    headers.insert("x-payment-required", encoded.parse().expect("header value"));
+
+    (StatusCode::PAYMENT_REQUIRED, headers, "Payment required".to_string())
 }
