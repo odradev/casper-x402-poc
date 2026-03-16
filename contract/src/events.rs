@@ -1,5 +1,5 @@
-use odra::casper_types::U256;
 use odra::casper_types::bytesrepr::Bytes;
+use odra::casper_types::U256;
 use odra::prelude::*;
 
 #[odra::event]

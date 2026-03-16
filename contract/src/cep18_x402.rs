@@ -95,7 +95,7 @@ impl Cep18X402 {
             self.env().revert(Error::InvalidPublicKey);
         }
 
-        // 6. Build message and verify signature        
+        // 6. Build message and verify signature
         let message = build_message(
             &from.value(),
             &to.value(),

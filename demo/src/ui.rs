@@ -9,7 +9,10 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 
 use x402_types::{VerifyRequest, VerifyResponse};
 
-use crate::{X_PAYMENT_REQUIRED, types::{FlowStep, PaymentPayload, PaymentRequired}};
+use crate::{
+    types::{FlowStep, PaymentPayload, PaymentRequired},
+    X_PAYMENT_REQUIRED,
+};
 
 pub struct UiState {
     pub secret_key: casper_types::crypto::SecretKey,
@@ -22,9 +25,7 @@ pub async fn handle_index() -> Html<&'static str> {
     Html(INDEX_HTML)
 }
 
-pub async fn handle_run_flow(
-    State(state): State<Arc<UiState>>,
-) -> impl IntoResponse {
+pub async fn handle_run_flow(State(state): State<Arc<UiState>>) -> impl IntoResponse {
     let http = reqwest::Client::new();
     let data_url = format!("{}/api/data", state.resource_url);
     let mut steps: Vec<FlowStep> = Vec::new();

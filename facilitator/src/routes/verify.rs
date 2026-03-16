@@ -144,12 +144,9 @@ pub async fn handle_verify(
                     payer: Some(payer),
                 }),
             )
-        },
+        }
         Err(reason) => {
-            println!(
-                "Authorization invalid: {}. Responding with 200 OK.",
-                reason
-            );
+            println!("Authorization invalid: {}. Responding with 200 OK.", reason);
             (
                 StatusCode::OK,
                 Json(VerifyResponse {
@@ -158,6 +155,6 @@ pub async fn handle_verify(
                     payer: None,
                 }),
             )
-        },
+        }
     }
 }

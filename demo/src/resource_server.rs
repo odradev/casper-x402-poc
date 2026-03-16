@@ -9,8 +9,8 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
 
 use crate::{
-    X_PAYMENT_REQUIRED,
     types::{PaymentPayload, PaymentRequired, SettleRequest, SettleResponse},
+    X_PAYMENT_REQUIRED,
 };
 
 enum ProcessingError {
@@ -106,10 +106,7 @@ async fn process_payment(state: &ResourceServerState, payload: PaymentPayload) -
         .into_response()
 }
 
-async fn handle_data(
-    State(state): State<ResourceServerState>,
-    headers: HeaderMap,
-) -> Response {
+async fn handle_data(State(state): State<ResourceServerState>, headers: HeaderMap) -> Response {
     let Some(payment_header) = headers.get("x-payment") else {
         println!("[server] No payment provided. Responding with 402 and requirements.");
         return respond_with_payment_required(&state.payment_requirements).into_response();

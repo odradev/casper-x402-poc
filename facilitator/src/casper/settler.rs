@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, anyhow};
-use casper_types::{AsymmetricType, PublicKey, bytesrepr::Bytes};
+use anyhow::{anyhow, Context, Result};
+use casper_types::{bytesrepr::Bytes, AsymmetricType, PublicKey};
 use cep18_x402::cep18_x402::Cep18X402HostRef;
 use odra::{host::HostRef, prelude::Address};
 
@@ -51,7 +51,9 @@ impl CasperSettler {
         let to = format!("account-hash-{}", to);
         let nonce = hex::decode(nonce_hex).context("Invalid nonce hex")?;
         let public_key_hex = public_key_hex.to_string();
-            println!("Calling transfer_with_authorization with: from={}, to={}, amount={}", from, to, amount
+        println!(
+            "Calling transfer_with_authorization with: from={}, to={}, amount={}",
+            from, to, amount
         );
         let sig_bytes = hex::decode(signature_hex).context("Invalid signature hex")?;
         tokio::task::spawn_blocking(move || {
@@ -66,7 +68,7 @@ impl CasperSettler {
                 valid_before,
                 Bytes::from(nonce),
                 PublicKey::from_hex(&public_key_hex)?,
-                sig_bytes.into()
+                sig_bytes.into(),
             );
             if let Err(e) = result {
                 eprintln!("Error calling transfer_with_authorization: {:?}", e);
@@ -75,6 +77,7 @@ impl CasperSettler {
 
             println!("Successfully called transfer_with_authorization with");
             Ok("real-tx-hash-placeholder".to_string())
-        }).await?
+        })
+        .await?
     }
 }

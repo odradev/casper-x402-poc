@@ -40,7 +40,8 @@ pub async fn handle_settle(
             &auth.nonce,
             &auth.public_key,
             &auth.signature,
-        ).await
+        )
+        .await
     {
         Ok(tx_hash) => (
             StatusCode::OK,

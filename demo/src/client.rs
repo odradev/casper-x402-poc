@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use casper_types::{
     account::AccountHash,
     bytesrepr::ToBytes,
-    crypto::{PublicKey, SecretKey, sign},
+    crypto::{sign, PublicKey, SecretKey},
 };
 use rand::RngCore;
 use std::time::{SystemTime, UNIX_EPOCH};
