@@ -131,21 +131,33 @@ pub async fn handle_verify(
         &req.payment_payload.authorization,
         &req.payment_requirements,
     ) {
-        Ok(payer) => (
-            StatusCode::OK,
-            Json(VerifyResponse {
-                is_valid: true,
-                invalid_reason: None,
-                payer: Some(payer),
-            }),
-        ),
-        Err(reason) => (
-            StatusCode::OK,
-            Json(VerifyResponse {
-                is_valid: false,
-                invalid_reason: Some(reason),
-                payer: None,
-            }),
-        ),
+        Ok(payer) => {
+            println!(
+                "Authorization valid for payer {}. Responding with 200 OK.",
+                payer
+            );
+            (
+                StatusCode::OK,
+                Json(VerifyResponse {
+                    is_valid: true,
+                    invalid_reason: None,
+                    payer: Some(payer),
+                }),
+            )
+        },
+        Err(reason) => {
+            println!(
+                "Authorization invalid: {}. Responding with 200 OK.",
+                reason
+            );
+            (
+                StatusCode::OK,
+                Json(VerifyResponse {
+                    is_valid: false,
+                    invalid_reason: Some(reason),
+                    payer: None,
+                }),
+            )
+        },
     }
 }

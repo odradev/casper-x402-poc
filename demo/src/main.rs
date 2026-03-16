@@ -24,9 +24,9 @@ async fn main() -> Result<()> {
 
     let requirements = PaymentRequired {
         x402_version: 1,
-        scheme: "casper-exact".to_string(),
-        network: "casper-test".to_string(),
-        asset: "CEP18".to_string(),
+        scheme: "exact".to_string(),
+        network: "casper:test".to_string(),
+        asset: "CEP18X402".to_string(),
         amount: config.payment_amount,
         pay_to: config.pay_to.clone(),
         max_timeout_secs: 300,
@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
         secret_key,
         public_key,
         resource_url: config.resource_url.clone(),
+        facilitator_url: config.facilitator_url.clone(),
     });
 
     // Resource server router (already has its own state applied)

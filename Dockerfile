@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
+COPY x402-types/ x402-types/
 COPY contract/ contract/
 COPY facilitator/ facilitator/
 COPY demo/ demo/

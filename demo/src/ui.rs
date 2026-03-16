@@ -7,12 +7,15 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 
+use x402_types::{VerifyRequest, VerifyResponse};
+
 use crate::{X_PAYMENT_REQUIRED, types::{FlowStep, PaymentPayload, PaymentRequired}};
 
 pub struct UiState {
     pub secret_key: casper_types::crypto::SecretKey,
     pub public_key: casper_types::crypto::PublicKey,
     pub resource_url: String,
+    pub facilitator_url: String,
 }
 
 pub async fn handle_index() -> Html<&'static str> {
@@ -132,7 +135,7 @@ pub async fn handle_run_flow(
         }),
     });
 
-    // Step 3: Retry with payment
+    // Build payment payload (used for both verify and pay steps)
     let payload = PaymentPayload {
         x402_version: payment_required.x402_version,
         scheme: payment_required.scheme.clone(),
@@ -140,11 +143,69 @@ pub async fn handle_run_flow(
         asset: payment_required.asset.clone(),
         authorization,
     };
+
+    // Step 3: Verify payment with facilitator
+    let verify_url = format!("{}/verify", state.facilitator_url);
+    let verify_req = VerifyRequest {
+        payment_payload: payload.clone(),
+        payment_requirements: payment_required.clone(),
+    };
+
+    let verify_result = http.post(&verify_url).json(&verify_req).send().await;
+
+    match verify_result {
+        Ok(resp) => match resp.json::<VerifyResponse>().await {
+            Ok(verify_resp) => {
+                if verify_resp.is_valid {
+                    steps.push(FlowStep {
+                        step: 3,
+                        title: "Verify Payment".into(),
+                        status: "success".into(),
+                        details: serde_json::json!({
+                            "is_valid": true,
+                            "payer": verify_resp.payer,
+                        }),
+                    });
+                } else {
+                    steps.push(FlowStep {
+                        step: 3,
+                        title: "Verify Payment".into(),
+                        status: "error".into(),
+                        details: serde_json::json!({
+                            "is_valid": false,
+                            "reason": verify_resp.invalid_reason,
+                        }),
+                    });
+                    return (StatusCode::OK, Json(steps));
+                }
+            }
+            Err(e) => {
+                steps.push(FlowStep {
+                    step: 3,
+                    title: "Verify Payment".into(),
+                    status: "error".into(),
+                    details: serde_json::json!({ "error": format!("Invalid verify response: {}", e) }),
+                });
+                return (StatusCode::OK, Json(steps));
+            }
+        },
+        Err(e) => {
+            steps.push(FlowStep {
+                step: 3,
+                title: "Verify Payment".into(),
+                status: "error".into(),
+                details: serde_json::json!({ "error": format!("Facilitator unreachable: {}", e) }),
+            });
+            return (StatusCode::OK, Json(steps));
+        }
+    }
+
+    // Step 4: Pay & Access Resource
     let payload_json = match serde_json::to_string(&payload) {
         Ok(j) => j,
         Err(e) => {
             steps.push(FlowStep {
-                step: 3,
+                step: 4,
                 title: "Pay & Access Resource".into(),
                 status: "error".into(),
                 details: serde_json::json!({ "error": format!("Serialization failed: {}", e) }),
@@ -163,7 +224,7 @@ pub async fn handle_run_flow(
         Ok(r) => r,
         Err(e) => {
             steps.push(FlowStep {
-                step: 3,
+                step: 4,
                 title: "Pay & Access Resource".into(),
                 status: "error".into(),
                 details: serde_json::json!({ "error": format!("Request failed: {}", e) }),
@@ -183,7 +244,7 @@ pub async fn handle_run_flow(
 
     if final_status == 200 {
         steps.push(FlowStep {
-            step: 3,
+            step: 4,
             title: "Pay & Access Resource".into(),
             status: "success".into(),
             details: serde_json::json!({
@@ -194,7 +255,7 @@ pub async fn handle_run_flow(
         });
     } else {
         steps.push(FlowStep {
-            step: 3,
+            step: 4,
             title: "Pay & Access Resource".into(),
             status: "error".into(),
             details: serde_json::json!({
