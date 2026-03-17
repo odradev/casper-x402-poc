@@ -1,3 +1,4 @@
+mod b64;
 mod client;
 mod config;
 mod resource_server;
@@ -11,9 +12,11 @@ use axum::routing::{get, post};
 use casper_types::crypto::{PublicKey, SecretKey};
 
 use config::Config;
-use types::PaymentRequired;
+use types::{PaymentRequired, PaymentRequirements, ResourceInfo};
 
-pub const X_PAYMENT_REQUIRED: &str = "x-payment-required";
+pub const HEADER_PAYMENT_REQUIRED: &str = "PAYMENT-REQUIRED";
+pub const HEADER_PAYMENT_SIGNATURE: &str = "PAYMENT-SIGNATURE";
+pub const HEADER_PAYMENT_RESPONSE: &str = "PAYMENT-RESPONSE";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,20 +24,30 @@ async fn main() -> Result<()> {
 
     let config = Config::from_env()?;
     let (secret_key, public_key) = load_demo_keys_from_file(&config.secret_key_path)?;
+    let resource_url = format!("{}/api/data", config.resource_url);
 
     let requirements = PaymentRequired {
-        x402_version: 1,
-        scheme: "exact".to_string(),
-        network: "casper:test".to_string(),
-        asset: "CEP18X402".to_string(),
-        amount: config.payment_amount,
-        pay_to: config.pay_to.clone(),
-        max_timeout_secs: 300,
-        resource: format!("{}/api/data", config.resource_url),
+        x402_version: 2,
+        error: None,
+        resource: ResourceInfo {
+            url: resource_url.clone(),
+            description: None,
+            mime_type: None,
+        },
+        accepts: vec![PaymentRequirements {
+            scheme: "exact".to_string(),
+            network: "casper:test".to_string(),
+            asset: "CEP18X402".to_string(),
+            amount: config.payment_amount.to_string(),
+            pay_to: config.pay_to.clone(),
+            max_timeout_seconds: 300,
+            extra: serde_json::Value::Null,
+        }],
+        extensions: None,
     };
 
     let resource_state = resource_server::ResourceServerState {
-        payment_requirements: requirements.clone(),
+        payment_requirements: requirements,
         facilitator_url: config.facilitator_url.clone(),
         http_client: reqwest::Client::new(),
     };

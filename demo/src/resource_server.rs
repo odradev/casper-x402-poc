@@ -9,9 +9,39 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
 
 use crate::{
+    b64::B64EncodeHeader,
     types::{PaymentPayload, PaymentRequired, SettleRequest, SettleResponse},
-    X_PAYMENT_REQUIRED,
+    HEADER_PAYMENT_REQUIRED, HEADER_PAYMENT_RESPONSE, HEADER_PAYMENT_SIGNATURE,
 };
+
+pub fn build_router(state: ResourceServerState) -> Router {
+    Router::new()
+        .route("/api/data", get(handle_data))
+        .with_state(state)
+}
+
+async fn handle_data(State(state): State<ResourceServerState>, headers: HeaderMap) -> Response {
+    let Some(payment_header) = headers.get(HEADER_PAYMENT_SIGNATURE) else {
+        println!("[resource_server] No payment provided. Responding with 402 and requirements.");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_PAYMENT_REQUIRED,
+            state.payment_requirements.b64_encoded_header().unwrap(),
+        );
+        return (
+            StatusCode::PAYMENT_REQUIRED,
+            headers,
+            "Payment required".to_string(),
+        )
+            .into_response();
+    };
+
+    println!("[resource_server] Forwarding payment to facilitator for settlement...");
+    match ResourceServerState::decode_payment(payment_header) {
+        Ok(payload) => state.process_payment(payload).await,
+        Err(e) => e.into_response(),
+    }
+}
 
 enum ProcessingError {
     BadRequest(String),
@@ -39,9 +69,9 @@ pub struct ResourceServerState {
 
 impl ResourceServerState {
     fn decode_payment(header: &axum::http::HeaderValue) -> Result<PaymentPayload, ProcessingError> {
-        let bytes = STANDARD
-            .decode(header.as_bytes())
-            .map_err(|_| ProcessingError::BadRequest("Cannot base64-decode X-PAYMENT".into()))?;
+        let bytes = STANDARD.decode(header.as_bytes()).map_err(|_| {
+            ProcessingError::BadRequest("Cannot base64-decode PAYMENT-SIGNATURE".into())
+        })?;
         serde_json::from_slice(&bytes)
             .map_err(|e| ProcessingError::BadRequest(format!("Cannot parse payment payload: {e}")))
     }
@@ -53,8 +83,8 @@ impl ResourceServerState {
         let url = format!("{}/settle", self.facilitator_url);
 
         let req = SettleRequest {
+            payment_requirements: payload.accepted.clone(),
             payment_payload: payload,
-            payment_requirements: self.payment_requirements.clone(),
         };
 
         let resp = self
@@ -74,69 +104,31 @@ impl ResourceServerState {
             .await
             .map_err(|e| ProcessingError::BadGateway(format!("Invalid facilitator response: {e}")))
     }
-}
 
-async fn process_payment(state: &ResourceServerState, payload: PaymentPayload) -> Response {
-    let settle_resp = match state.settle_payment(payload).await {
-        Ok(r) => r,
-        Err(e) => return e.into_response(),
-    };
+    async fn process_payment(&self, payload: PaymentPayload) -> Response {
+        let settle_resp = match self.settle_payment(payload).await {
+            Ok(r) => r,
+            Err(e) => return e.into_response(),
+        };
 
-    if !settle_resp.success {
-        return ProcessingError::PaymentFailed(format!(
-            "Payment failed: {}",
-            settle_resp.error_reason.unwrap_or_default()
-        ))
-        .into_response();
+        if !settle_resp.success {
+            return ProcessingError::PaymentFailed(format!(
+                "Payment failed: {}",
+                settle_resp.error_reason.unwrap_or_default()
+            ))
+            .into_response();
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_PAYMENT_RESPONSE,
+            settle_resp.b64_encoded_header().unwrap(),
+        );
+        (
+            StatusCode::OK,
+            headers,
+            json!({"data": "secret-resource-content: https://odra.dev"}).to_string(),
+        )
+            .into_response()
     }
-
-    let tx_hash = settle_resp.transaction.unwrap_or_default();
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        "x-payment-response",
-        tx_hash
-            .parse()
-            .unwrap_or_else(|_| "unknown".parse().unwrap()),
-    );
-    (
-        StatusCode::OK,
-        headers,
-        json!({"data": "secret-resource-content"}).to_string(),
-    )
-        .into_response()
-}
-
-async fn handle_data(State(state): State<ResourceServerState>, headers: HeaderMap) -> Response {
-    let Some(payment_header) = headers.get("x-payment") else {
-        println!("[server] No payment provided. Responding with 402 and requirements.");
-        return respond_with_payment_required(&state.payment_requirements).into_response();
-    };
-
-    println!("[server] Forwarding payment to facilitator for settlement...");
-
-    match ResourceServerState::decode_payment(payment_header) {
-        Ok(payload) => process_payment(&state, payload).await,
-        Err(e) => e.into_response(),
-    }
-}
-
-pub fn build_router(state: ResourceServerState) -> Router {
-    Router::new()
-        .route("/api/data", get(handle_data))
-        .with_state(state)
-}
-
-fn respond_with_payment_required(requirements: &PaymentRequired) -> impl IntoResponse {
-    let requirements_json =
-        serde_json::to_string(requirements).unwrap_or_else(|_| "{}".to_string());
-    let encoded = STANDARD.encode(requirements_json.as_bytes());
-
-    let mut headers = HeaderMap::new();
-    headers.insert(X_PAYMENT_REQUIRED, encoded.parse().expect("header value"));
-
-    (
-        StatusCode::PAYMENT_REQUIRED,
-        headers,
-        "Payment required".to_string(),
-    )
 }

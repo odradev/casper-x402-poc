@@ -78,9 +78,6 @@ services:
       ODRA_CASPER_LIVENET_EVENTS_URL: http://nctl:18101/events
       ODRA_CASPER_LIVENET_SECRET_KEY_PATH: /nctl-keys/secret_key.pem
       ODRA_CASPER_LIVENET_KEY_1: /nctl-keys/secret_key_1.pem
-      ODRA_CASPER_LIVENET_KEY_2: /nctl-keys/secret_key_2.pem
-      ODRA_CASPER_LIVENET_KEY_3: /nctl-keys/secret_key_3.pem
-      ODRA_CASPER_LIVENET_KEY_4: /nctl-keys/secret_key_4.pem
       X402_CONTRACT_ADDRESS_FILE: /deployed/contract_package_hash
 
   # ── Facilitator HTTP service ──────────────────────────────────────────────
@@ -109,11 +106,7 @@ services:
       ODRA_CASPER_LIVENET_NODE_ADDRESS: http://nctl:11101
       ODRA_CASPER_LIVENET_CHAIN_NAME: casper-net-1
       ODRA_CASPER_LIVENET_EVENTS_URL: http://nctl:18101/events
-      ODRA_CASPER_LIVENET_SECRET_KEY_PATH: /nctl-keys/secret_key.pem
-      ODRA_CASPER_LIVENET_KEY_1: /nctl-keys/secret_key_1.pem
-      ODRA_CASPER_LIVENET_KEY_2: /nctl-keys/secret_key_2.pem
-      ODRA_CASPER_LIVENET_KEY_3: /nctl-keys/secret_key_3.pem
-      ODRA_CASPER_LIVENET_KEY_4: /nctl-keys/secret_key_4.pem
+      ODRA_CASPER_LIVENET_SECRET_KEY_PATH: /nctl-keys/secret_key_4.pem
       X402_CONTRACT_ADDRESS_FILE: /deployed/contract_package_hash
       PORT: 3001
 

@@ -10,7 +10,7 @@ use crate::events::TransferWithAuthorization;
 /// Build the 159-byte authorization message pre-image.
 ///
 /// Layout:
-///   15 bytes  — b"casper-x402-v1:"
+///   15 bytes  — b"casper-x402-v2:"
 ///   32 bytes  — from account hash
 ///   32 bytes  — to account hash
 ///   32 bytes  — amount (U256, little-endian)
@@ -27,7 +27,7 @@ pub fn build_message(
     nonce: &[u8],
 ) -> Vec<u8> {
     let mut msg = Vec::with_capacity(159);
-    msg.extend_from_slice(b"casper-x402-v1:");
+    msg.extend_from_slice(b"casper-x402-v2:");
     msg.extend_from_slice(from_hash);
     msg.extend_from_slice(to_hash);
     let mut amount_bytes = [0u8; 32];

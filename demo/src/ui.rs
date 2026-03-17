@@ -1,18 +1,16 @@
 use std::sync::Arc;
 
+use crate::{
+    b64::{B64DecodeHeader, B64EncodeHeader},
+    types::{FlowStep, PaymentPayload, PaymentRequired},
+    HEADER_PAYMENT_REQUIRED, HEADER_PAYMENT_RESPONSE, HEADER_PAYMENT_SIGNATURE,
+};
 use axum::{
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-
-use x402_types::{VerifyRequest, VerifyResponse};
-
-use crate::{
-    types::{FlowStep, PaymentPayload, PaymentRequired},
-    X_PAYMENT_REQUIRED,
-};
+use x402_types::{SettleResponse, VerifyRequest, VerifyResponse};
 
 pub struct UiState {
     pub secret_key: casper_types::crypto::SecretKey,
@@ -30,240 +28,160 @@ pub async fn handle_run_flow(State(state): State<Arc<UiState>>) -> impl IntoResp
     let data_url = format!("{}/api/data", state.resource_url);
     let mut steps: Vec<FlowStep> = Vec::new();
 
-    // Step 1: Unauthenticated request → expect 402
+    // Step 1: Unauthenticated request → expect 402 with PAYMENT-REQUIRED header
     let resp = match http.get(&data_url).send().await {
         Ok(r) => r,
         Err(e) => {
-            steps.push(FlowStep {
-                step: 1,
-                title: "Request Resource".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": format!("Failed to reach resource server: {}", e) }),
-            });
+            steps.push(FlowStep::step_1_error(format!(
+                "Failed to reach resource server: {}",
+                e
+            )));
             return (StatusCode::OK, Json(steps));
         }
     };
 
+    // Check for 402 status code
     let status_code = resp.status().as_u16();
-    let payment_required_b64 = resp
-        .headers()
-        .get(X_PAYMENT_REQUIRED)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
-
     if status_code != 402 {
-        steps.push(FlowStep {
-            step: 1,
-            title: "Request Resource".into(),
-            status: "error".into(),
-            details: serde_json::json!({ "error": format!("Expected 402, got {}", status_code) }),
-        });
+        steps.push(FlowStep::step_1_error(format!(
+            "Expected 402, got {}",
+            status_code
+        )));
         return (StatusCode::OK, Json(steps));
     }
 
-    let payment_required_b64 = match payment_required_b64 {
-        Some(v) => v,
+    // Decode PaymentRequired from PAYMENT-REQUIRED header (base64-encoded JSON)
+    let payment_required = resp
+        .headers()
+        .get(HEADER_PAYMENT_REQUIRED)
+        .map(|v| PaymentRequired::from_b64_header(v));
+
+    let payment_required = match payment_required {
+        Some(Ok(b)) => b,
+        Some(Err(e)) => {
+            steps.push(FlowStep::step_1_error(format!(
+                "Failed to decode PAYMENT-REQUIRED header: {}",
+                e
+            )));
+            return (StatusCode::OK, Json(steps));
+        }
         None => {
-            steps.push(FlowStep {
-                step: 1,
-                title: "Request Resource".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": "Missing X-PAYMENT-REQUIRED header" }),
-            });
+            steps.push(FlowStep::step_1_error("Missing PAYMENT-REQUIRED header"));
             return (StatusCode::OK, Json(steps));
         }
     };
 
-    let payment_required: PaymentRequired = match STANDARD
-        .decode(&payment_required_b64)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-    {
-        Some(pr) => pr,
+    // Pick the first accepted payment option
+    let requirements = match payment_required.accepts.first() {
+        Some(r) => r.clone(),
         None => {
-            steps.push(FlowStep {
-                step: 1,
-                title: "Request Resource".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": "Failed to decode payment requirements" }),
-            });
+            steps.push(FlowStep::step_1_error("No payment options in accepts"));
             return (StatusCode::OK, Json(steps));
         }
     };
 
-    steps.push(FlowStep {
-        step: 1,
-        title: "Request Resource".into(),
-        status: "success".into(),
-        details: serde_json::json!({
-            "response": "402 Payment Required",
-            "amount": payment_required.amount,
-            "pay_to": payment_required.pay_to,
-            "scheme": payment_required.scheme,
-            "network": payment_required.network,
-        }),
-    });
+    // End of Step 1: Successfully received payment requirements
+    steps.push(FlowStep::step_1_success(&requirements));
 
-    // Step 2: Sign authorization
+    // Step 2: Sign authorization using chosen requirements
     let authorization = match crate::client::sign_authorization(
         &state.secret_key,
         &state.public_key,
-        &payment_required,
+        &requirements,
     ) {
         Ok(auth) => auth,
         Err(e) => {
-            steps.push(FlowStep {
-                step: 2,
-                title: "Sign Authorization".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": format!("{}", e) }),
-            });
+            steps.push(FlowStep::step_2_error(e));
             return (StatusCode::OK, Json(steps));
         }
     };
 
-    steps.push(FlowStep {
-        step: 2,
-        title: "Sign Authorization".into(),
-        status: "success".into(),
-        details: serde_json::json!({
-            "from": authorization.from,
-            "to": authorization.to,
-            "amount": authorization.amount,
-            "valid_after": authorization.valid_after,
-            "valid_before": authorization.valid_before,
-            "nonce": authorization.nonce,
-        }),
-    });
+    // End of Step 2: Successfully signed authorization
+    steps.push(FlowStep::step_2_success(&authorization));
 
-    // Build payment payload (used for both verify and pay steps)
+    // Build payment payload with nested authorization in payload field
     let payload = PaymentPayload {
         x402_version: payment_required.x402_version,
-        scheme: payment_required.scheme.clone(),
-        network: payment_required.network.clone(),
-        asset: payment_required.asset.clone(),
-        authorization,
+        resource: Some(payment_required.resource.clone()),
+        accepted: requirements.clone(),
+        payload: authorization.to_payload_value(),
+        extensions: None,
     };
 
     // Step 3: Verify payment with facilitator
     let verify_url = format!("{}/verify", state.facilitator_url);
     let verify_req = VerifyRequest {
         payment_payload: payload.clone(),
-        payment_requirements: payment_required.clone(),
+        payment_requirements: requirements.clone(),
     };
 
     let verify_result = http.post(&verify_url).json(&verify_req).send().await;
-
     match verify_result {
         Ok(resp) => match resp.json::<VerifyResponse>().await {
             Ok(verify_resp) => {
                 if verify_resp.is_valid {
-                    steps.push(FlowStep {
-                        step: 3,
-                        title: "Verify Payment".into(),
-                        status: "success".into(),
-                        details: serde_json::json!({
-                            "is_valid": true,
-                            "payer": verify_resp.payer,
-                        }),
-                    });
+                    steps.push(FlowStep::step_3_success(verify_resp.payer));
                 } else {
-                    steps.push(FlowStep {
-                        step: 3,
-                        title: "Verify Payment".into(),
-                        status: "error".into(),
-                        details: serde_json::json!({
-                            "is_valid": false,
-                            "reason": verify_resp.invalid_reason,
-                        }),
-                    });
+                    steps.push(FlowStep::step_3_error(verify_resp.invalid_reason));
                     return (StatusCode::OK, Json(steps));
                 }
             }
             Err(e) => {
-                steps.push(FlowStep {
-                    step: 3,
-                    title: "Verify Payment".into(),
-                    status: "error".into(),
-                    details: serde_json::json!({ "error": format!("Invalid verify response: {}", e) }),
-                });
+                steps.push(FlowStep::step_3_error(Some(format!(
+                    "Invalid verify response: {}",
+                    e
+                ))));
                 return (StatusCode::OK, Json(steps));
             }
         },
         Err(e) => {
-            steps.push(FlowStep {
-                step: 3,
-                title: "Verify Payment".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": format!("Facilitator unreachable: {}", e) }),
-            });
+            steps.push(FlowStep::step_3_error(Some(format!(
+                "Facilitator unreachable: {}",
+                e
+            ))));
             return (StatusCode::OK, Json(steps));
         }
     }
 
-    // Step 4: Pay & Access Resource
-    let payload_json = match serde_json::to_string(&payload) {
+    // Step 4: Pay & Access Resource with PAYMENT-SIGNATURE header
+    let payment_header = payload.b64_encoded_header();
+    let payment_header = match payment_header {
         Ok(j) => j,
         Err(e) => {
-            steps.push(FlowStep {
-                step: 4,
-                title: "Pay & Access Resource".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": format!("Serialization failed: {}", e) }),
-            });
+            steps.push(FlowStep::step_4_error(e));
             return (StatusCode::OK, Json(steps));
         }
     };
-    let payment_header = STANDARD.encode(payload_json.as_bytes());
-
+    // Request data with PAYMENT-SIGNATURE header.
     let resp = match http
         .get(&data_url)
-        .header("x-payment", &payment_header)
+        .header(HEADER_PAYMENT_SIGNATURE, payment_header)
         .send()
         .await
     {
         Ok(r) => r,
         Err(e) => {
-            steps.push(FlowStep {
-                step: 4,
-                title: "Pay & Access Resource".into(),
-                status: "error".into(),
-                details: serde_json::json!({ "error": format!("Request failed: {}", e) }),
-            });
+            steps.push(FlowStep::step_4_error(format!("Request failed: {}", e)));
             return (StatusCode::OK, Json(steps));
         }
     };
 
+    // Process the final response from the resource server.
     let final_status = resp.status().as_u16();
-    let tx_hash = resp
+    let payment_response = resp
         .headers()
-        .get("x-payment-response")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("(none)")
-        .to_string();
+        .get(HEADER_PAYMENT_RESPONSE)
+        .and_then(|v| SettleResponse::from_b64_header(v).ok());
     let body = resp.text().await.unwrap_or_default();
 
     if final_status == 200 {
-        steps.push(FlowStep {
-            step: 4,
-            title: "Pay & Access Resource".into(),
-            status: "success".into(),
-            details: serde_json::json!({
-                "status": final_status,
-                "transaction": tx_hash,
-                "body": body,
-            }),
-        });
+        steps.push(FlowStep::step_4_success(
+            final_status,
+            body,
+            payment_response,
+        ));
     } else {
-        steps.push(FlowStep {
-            step: 4,
-            title: "Pay & Access Resource".into(),
-            status: "error".into(),
-            details: serde_json::json!({
-                "status": final_status,
-                "body": body,
-            }),
-        });
+        steps.push(FlowStep::step_4_payment_error(final_status, body));
     }
 
     (StatusCode::OK, Json(steps))

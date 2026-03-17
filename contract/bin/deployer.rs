@@ -1,6 +1,6 @@
 use cep18_x402::cep18_x402::{Cep18X402, Cep18X402InitArgs};
 use odra::{
-    host::{Deployer, InstallConfig},
+    host::Deployer,
     prelude::Addressable,
 };
 
@@ -18,19 +18,14 @@ fn main() {
     let env = odra_casper_livenet_env::env();
 
     env.set_gas(500_000_000_000);
-    let contract = Cep18X402::try_deploy_with_cfg(
+    let contract = Cep18X402::try_deploy(
         &env,
         Cep18X402InitArgs {
             symbol: "X402".to_string(),
             name: "Casper X402 Token".to_string(),
             decimals: 2,
             initial_supply: 1_000_000_000.into(),
-        },
-        InstallConfig {
-            package_named_key: "Cep18X403".to_string(),
-            is_upgradable: true,
-            allow_key_override: true,
-        },
+        }
     );
     let contract = contract.expect("Failed to deploy contract");
     std::fs::write(&address_file_path, contract.address().to_string())

@@ -1,14 +1,6 @@
 # Build the WASM contract (requires wasm32 target)
 build-contract:
-    cd contract && cargo odra build
-
-# Build the facilitator server
-build-facilitator:
-    cargo build -p facilitator --release
-
-# Build the demo
-build-demo:
-    cargo build -p demo
+    cargo odra build
 
 # Run contract tests
 test:
@@ -18,12 +10,8 @@ test:
 test-one name:
     cargo test -p cep18-x402 -- {{name}}
 
-# Run the facilitator server
-run-facilitator:
-    cargo run -p facilitator
-
 # Run the demo (resource server + client flow)
-run-demo:
+run-demo: copy-node-keys
     cargo run -p demo
 
 # Run facilitator and demo together (facilitator in background)
@@ -66,3 +54,6 @@ docker-ps:
 # Restart a specific Docker service
 docker-restart service:
     docker compose restart {{service}}
+
+copy-node-keys:
+    docker exec casper-x402-poc-nctl-1 cat /home/casper/casper-nctl/assets/net-1/users/user-1/secret_key.pem > .node_keys/secret_key.pem

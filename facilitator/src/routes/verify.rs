@@ -7,7 +7,7 @@ use casper_types::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
-    types::{CasperAuthorization, PaymentRequired, VerifyRequest, VerifyResponse},
+    types::{CasperAuthorization, PaymentRequirements, VerifyRequest, VerifyResponse},
     AppState,
 };
 
@@ -21,7 +21,7 @@ pub fn build_message(
     nonce: &[u8],
 ) -> Vec<u8> {
     let mut msg = Vec::with_capacity(159);
-    msg.extend_from_slice(b"casper-x402-v1:");
+    msg.extend_from_slice(b"casper-x402-v2:");
     msg.extend_from_slice(from_hash);
     msg.extend_from_slice(to_hash);
 
@@ -44,7 +44,7 @@ pub fn build_message(
 /// Validate a `CasperAuthorization` against payment requirements — off-chain only.
 pub fn verify_authorization(
     auth: &CasperAuthorization,
-    requirements: &PaymentRequired,
+    requirements: &PaymentRequirements,
 ) -> Result<String, String> {
     // 1. Check destination and amount match requirements
     if auth.to != requirements.pay_to {
@@ -59,6 +59,12 @@ pub fn verify_authorization(
             auth.amount, requirements.amount
         ));
     }
+
+    // Parse amount from string to u64 for message building
+    let amount: u64 = auth
+        .amount
+        .parse()
+        .map_err(|e| format!("invalid amount: {}", e))?;
 
     // 2. Time window check
     let now = SystemTime::now()
@@ -106,7 +112,7 @@ pub fn verify_authorization(
     let message = build_message(
         &from_arr,
         &to_arr,
-        auth.amount,
+        amount,
         auth.valid_after,
         auth.valid_before,
         &nonce,
@@ -127,10 +133,21 @@ pub async fn handle_verify(
     State(_state): State<AppState>,
     Json(req): Json<VerifyRequest>,
 ) -> impl IntoResponse {
-    match verify_authorization(
-        &req.payment_payload.authorization,
-        &req.payment_requirements,
-    ) {
+    let auth = match CasperAuthorization::from_payload_value(&req.payment_payload.payload) {
+        Ok(a) => a,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(VerifyResponse {
+                    is_valid: false,
+                    invalid_reason: Some(format!("Cannot parse authorization from payload: {}", e)),
+                    payer: None,
+                }),
+            );
+        }
+    };
+
+    match verify_authorization(&auth, &req.payment_requirements) {
         Ok(payer) => {
             println!(
                 "Authorization valid for payer {}. Responding with 200 OK.",

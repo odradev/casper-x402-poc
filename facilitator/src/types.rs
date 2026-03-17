@@ -1,4 +1,4 @@
 pub use x402_types::{
-    CasperAuthorization, PaymentRequired, SettleRequest, SettleResponse, VerifyRequest,
+    CasperAuthorization, PaymentRequirements, SettleRequest, SettleResponse, VerifyRequest,
     VerifyResponse,
 };

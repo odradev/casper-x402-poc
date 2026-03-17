@@ -1,19 +1,41 @@
 use serde::{Deserialize, Serialize};
 
-/// Sent by resource server in the `X-PAYMENT-REQUIRED` header (base64-encoded JSON).
+/// Describes the resource being paid for.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PaymentRequired {
-    #[serde(rename = "x402Version")]
-    pub x402_version: u8,
+#[serde(rename_all = "camelCase")]
+pub struct ResourceInfo {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+/// A single payment option the resource server accepts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentRequirements {
     pub scheme: String,
     pub network: String,
     pub asset: String,
-    pub amount: u64,
-    #[serde(rename = "payTo")]
+    pub amount: String,
     pub pay_to: String,
-    #[serde(rename = "maxTimeoutSecs")]
-    pub max_timeout_secs: u64,
-    pub resource: String,
+    pub max_timeout_seconds: u64,
+    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+    pub extra: serde_json::Value,
+}
+
+/// 402 response body per the x402 protocol specification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentRequired {
+    pub x402_version: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub resource: ResourceInfo,
+    pub accepts: Vec<PaymentRequirements>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<serde_json::Value>,
 }
 
 /// The signed authorization (all fields hex-encoded bytes).
@@ -21,7 +43,7 @@ pub struct PaymentRequired {
 pub struct CasperAuthorization {
     pub from: String,
     pub to: String,
-    pub amount: u64,
+    pub amount: String,
     pub valid_after: u64,
     pub valid_before: u64,
     pub nonce: String,
@@ -29,20 +51,35 @@ pub struct CasperAuthorization {
     pub signature: String,
 }
 
-/// Payload the client attaches in the `X-PAYMENT` header.
+impl CasperAuthorization {
+    /// Serialize into a `serde_json::Value` for embedding in `PaymentPayload.payload`.
+    pub fn to_payload_value(&self) -> serde_json::Value {
+        serde_json::to_value(self).expect("CasperAuthorization is always serializable")
+    }
+
+    /// Deserialize from the `PaymentPayload.payload` field.
+    pub fn from_payload_value(value: &serde_json::Value) -> Result<Self, serde_json::Error> {
+        serde_json::from_value(value.clone())
+    }
+}
+
+/// Payload the client sends with the `Payment-Signature` header.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PaymentPayload {
     pub x402_version: u8,
-    pub scheme: String,
-    pub network: String,
-    pub asset: String,
-    pub authorization: CasperAuthorization,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource: Option<ResourceInfo>,
+    pub accepted: PaymentRequirements,
+    pub payload: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyRequest {
     pub payment_payload: PaymentPayload,
-    pub payment_requirements: PaymentRequired,
+    pub payment_requirements: PaymentRequirements,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,7 +94,7 @@ pub struct VerifyResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SettleRequest {
     pub payment_payload: PaymentPayload,
-    pub payment_requirements: PaymentRequired,
+    pub payment_requirements: PaymentRequirements,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
