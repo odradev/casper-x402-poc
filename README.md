@@ -41,9 +41,9 @@ The project consists of three workspace members:
 
 A CEP-18 token contract extended with `transfer_with_authorization` — gasless, off-chain-signed transfers. Built with the [Odra](https://github.com/odradev/odra) smart contract framework.
 
-- **Authorization pre-image** (159 bytes): `"casper-x402-v1:" || from || to || amount || valid_after || valid_before || nonce`
+- **Authorization pre-image**: `"casper-x402-v2:" || from || to || amount || valid_after || valid_before || nonce`
 - **On-chain verification**: replay protection (nonce mapping), time-window checks, Ed25519 signature verification
-- **Standard CEP-18 interface**: name, symbol, decimals, transfer, approve, etc.
+- **Standard CEP-18 interface**
 
 ### `facilitator/` — Settlement Service
 
