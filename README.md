@@ -16,23 +16,23 @@ This project adapts the protocol for the Casper network by implementing gasless,
 ## Architecture
 
 ```
-┌──────────┐   GET /resource    ┌──────────────────┐   POST /settle   ┌──────────────┐
-│          │ ────────────────▶  │                  │ ───────────────▶ │              │
-│  Client  │   ◀──── 402 ────  │  Resource Server  │  ◀── 200 ─────  │  Facilitator │
+┌──────────┐   GET /resource   ┌──────────────────┐   POST /settle   ┌──────────────┐
+│          │ ────────────────▶ │                  │ ───────────────▶ │              │
+│  Client  │   ◀──── 402 ────  │  Resource Server │  ◀── 200 ──────  │  Facilitator │
 │          │                   │                  │                  │              │
 │          │   GET + X-PAYMENT │                  │                  │              │
 │          │ ────────────────▶ │                  │                  │              │
 │          │   ◀──── 200 ───── │                  │                  │              │
 └──────────┘                   └──────────────────┘                  └──────┬───────┘
-                                                                           │
-                                                                    on-chain settle
-                                                                           │
-                                                                    ┌──────▼───────┐
-                                                                    │   Casper     │
-                                                                    │   Network    │
-                                                                    │  (CEP-18     │
-                                                                    │   + x402)    │
-                                                                    └──────────────┘
+                                                                            │
+                                                                     on-chain settle
+                                                                            │
+                                                                     ┌──────▼───────┐
+                                                                     │   Casper     │
+                                                                     │   Network    │
+                                                                     │  (CEP-18     │
+                                                                     │   + x402)    │
+                                                                     └──────────────┘
 ```
 
 The project consists of four workspace members:
