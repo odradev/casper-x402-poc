@@ -111,7 +111,11 @@ impl FlowStep {
         }
     }
 
-    pub fn step_4_success(status: u16, body: String, payment_response: Option<SettleResponse>) -> Self {
+    pub fn step_4_success(
+        status: u16,
+        body: String,
+        payment_response: Option<SettleResponse>,
+    ) -> Self {
         Self {
             step: 4,
             title: "Pay & Access Resource".into(),

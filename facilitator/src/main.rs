@@ -2,7 +2,10 @@ mod casper;
 mod routes;
 mod types;
 
-use axum::{routing::post, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use std::sync::Arc;
 
 use casper::settler::CasperSettler;
@@ -29,6 +32,7 @@ async fn main() {
     let app = Router::new()
         .route("/verify", post(routes::verify::handle_verify))
         .route("/settle", post(routes::settle::handle_settle))
+        .route("/supported", get(routes::supported::handle_settle))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);

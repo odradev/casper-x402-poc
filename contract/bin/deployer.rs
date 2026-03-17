@@ -1,8 +1,5 @@
 use cep18_x402::cep18_x402::{Cep18X402, Cep18X402InitArgs};
-use odra::{
-    host::Deployer,
-    prelude::Addressable,
-};
+use odra::{host::Deployer, prelude::Addressable};
 
 fn main() {
     let address_file_path = std::env::var("X402_CONTRACT_ADDRESS_FILE")
@@ -25,7 +22,7 @@ fn main() {
             name: "Casper X402 Token".to_string(),
             decimals: 2,
             initial_supply: 1_000_000_000.into(),
-        }
+        },
     );
     let contract = contract.expect("Failed to deploy contract");
     std::fs::write(&address_file_path, contract.address().to_string())
