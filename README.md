@@ -35,7 +35,7 @@ This project adapts the protocol for the Casper network by implementing gasless,
                                                                     └──────────────┘
 ```
 
-The project consists of three workspace members:
+The project consists of four workspace members:
 
 ### `contract/` — Smart Contract (CEP-18 + x402)
 
@@ -45,12 +45,17 @@ A CEP-18 token contract extended with `transfer_with_authorization` — gasless,
 - **On-chain verification**: replay protection (nonce mapping), time-window checks, Ed25519 signature verification
 - **Standard CEP-18 interface**
 
+### `x402-types/` — Shared Types
+
+Common request/response types used by both the facilitator and demo crates: `PaymentRequired`, `CasperAuthorization`, `PaymentPayload`, `VerifyRequest`, `SettleRequest`, and related structs.
+
 ### `facilitator/` — Settlement Service
 
 An HTTP service (Axum) that verifies payment authorizations and settles them on-chain.
 
 | Endpoint | Description |
 |---|---|
+| `GET /supported` | Returns x402 protocol metadata (network, asset, version) |
 | `POST /verify` | Off-chain signature and authorization validation |
 | `POST /settle` | Verify + submit on-chain `transfer_with_authorization` |
 
@@ -58,7 +63,7 @@ Settles payments against a local Casper network (nctl).
 
 ### `demo/` — End-to-End Demo
 
-A self-contained binary that runs both a resource server and a client, demonstrating the full x402 payment flow using keys from the local nctl network.
+A self-contained binary that runs a resource server, a web UI, and a client, demonstrating the full x402 payment flow. The resource server exposes a paid endpoint at `/api/data`, and the UI at `/` provides a browser-based interface to trigger the payment flow via `/api/run-flow`.
 
 ## Prerequisites
 
@@ -71,7 +76,7 @@ A self-contained binary that runs both a resource server and a client, demonstra
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/aspect-build/casper-x402-poc.git
+git clone https://github.com/kpob/casper-x402-poc.git
 cd casper-x402-poc
 cp .env.example .env
 ```
@@ -89,13 +94,13 @@ just build-contract
 Spin up a local Casper network, deploy the contract, and start the facilitator:
 
 ```bash
-docker compose up --build -d
+just docker-up
 
 # Follow logs
-docker compose logs -f
+just docker-logs {{service}}
 
 # Check service status
-docker compose ps
+just docker-ps
 ```
 
 This starts:
@@ -121,10 +126,12 @@ Copy `.env.example` to `.env` and adjust as needed:
 |---|---|---|
 | `PORT` | Facilitator listen port | `3001` |
 | `RESOURCE_SERVER_PORT` | Demo resource server port | `3002` |
+| `RESOURCE_SERVER_URL` | URL the demo client uses to reach the resource server | `http://127.0.0.1:3002` |
 | `FACILITATOR_URL` | URL the resource server uses to reach the facilitator | `http://127.0.0.1:3001` |
 | `CONTRACT_PACKAGE_HASH` | Deployed contract address (set automatically by the deployer) | — |
 | `PAY_TO` | Recipient account hash | — |
 | `PAYMENT_AMOUNT` | Payment amount in token units | `1000000` |
+| `SECRET_KEY_PATH` | Path to the Ed25519 secret key for the demo client | `.node_keys/secret_key.pem` |
 | `ODRA_CASPER_LIVENET_*` | Casper node connection settings | — |
 
 ## Development
