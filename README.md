@@ -76,7 +76,7 @@ A self-contained binary that runs a resource server, a web UI, and a client, dem
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/kpob/casper-x402-poc.git
+git clone https://github.com/odradev/casper-x402-poc.git
 cd casper-x402-poc
 cp .env.example .env
 ```
