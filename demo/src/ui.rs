@@ -10,6 +10,7 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
+use casper_eip_712::DomainSeparator;
 use x402_types::{SettleResponse, VerifyRequest, VerifyResponse};
 
 pub struct UiState {
@@ -17,6 +18,7 @@ pub struct UiState {
     pub public_key: casper_types::crypto::PublicKey,
     pub resource_url: String,
     pub facilitator_url: String,
+    pub domain: DomainSeparator
 }
 
 pub async fn handle_index() -> Html<&'static str> {
@@ -87,6 +89,7 @@ pub async fn handle_run_flow(State(state): State<Arc<UiState>>) -> impl IntoResp
     let authorization = match crate::client::sign_authorization(
         &state.secret_key,
         &state.public_key,
+        &state.domain,
         &requirements,
     ) {
         Ok(auth) => auth,

@@ -7,40 +7,35 @@ use odra_modules::cep18_token::Cep18;
 use crate::errors::Error;
 use crate::events::TransferWithAuthorization;
 
-/// Build the 159-byte authorization message pre-image.
-///
-/// Layout:
-///   15 bytes  — b"casper-x402-v2:"
-///   32 bytes  — from account hash
-///   32 bytes  — to account hash
-///   32 bytes  — amount (U256, little-endian)
-///    8 bytes  — valid_after (u64, little-endian)
-///    8 bytes  — valid_before (u64, little-endian)
-///   32 bytes  — nonce
-/// = 159 bytes total
+/// Build the EIP-712 hash for a transfer authorization.
 pub fn build_message(
-    from_hash: &[u8; 32],
-    to_hash: &[u8; 32],
+    from_hash: [u8; 32],
+    to_hash: [u8; 32],
     amount: &U256,
     valid_after: u64,
     valid_before: u64,
     nonce: &[u8],
+    chain_name: &str,
+    contract_address: Address
 ) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(159);
-    msg.extend_from_slice(b"casper-x402-v2:");
-    msg.extend_from_slice(from_hash);
-    msg.extend_from_slice(to_hash);
-    let mut amount_bytes = [0u8; 32];
-    amount.to_little_endian(&mut amount_bytes);
-    msg.extend_from_slice(&amount_bytes);
-    msg.extend_from_slice(&valid_after.to_le_bytes());
-    msg.extend_from_slice(&valid_before.to_le_bytes());
-    // Pad or truncate nonce to 32 bytes
+    let mut value_bytes = [0u8; 32];
+    amount.to_big_endian(&mut value_bytes);
+
     let mut nonce_padded = [0u8; 32];
     let len = nonce.len().min(32);
     nonce_padded[..len].copy_from_slice(&nonce[..len]);
-    msg.extend_from_slice(&nonce_padded);
-    msg
+
+    let auth = x402_eip712::TransferAuthorization {
+        from: from_hash,
+        to: to_hash,
+        value: value_bytes,
+        valid_after,
+        valid_before,
+        nonce: nonce_padded,
+    };
+
+    let domain = x402_eip712::x402_domain(chain_name, contract_address.value());
+    casper_eip_712::hash_typed_data(&domain, &auth).to_vec()
 }
 
 /// CEP-18 token extended with EIP-3009-style transfer_with_authorization.
@@ -48,12 +43,14 @@ pub fn build_message(
 pub struct Cep18X402 {
     token: SubModule<Cep18>,
     used_nonces: Mapping<(Address, Bytes), bool>,
+    chain_name: Var<String>
 }
 
 #[odra::module]
 impl Cep18X402 {
-    pub fn init(&mut self, symbol: String, name: String, decimals: u8, initial_supply: U256) {
+    pub fn init(&mut self, symbol: String, name: String, decimals: u8, initial_supply: U256, chain_name: String) {
         self.token.init(symbol, name, decimals, initial_supply);
+        self.chain_name.set(chain_name);
     }
 
     pub fn transfer_with_authorization(
@@ -97,12 +94,14 @@ impl Cep18X402 {
 
         // 6. Build message and verify signature
         let message = build_message(
-            &from.value(),
-            &to.value(),
+            from.value(),
+            to.value(),
             &amount,
             valid_after,
             valid_before,
             &nonce,
+            &self.chain_name.get().unwrap_or_revert(self),
+            self.env().self_address()
         );
         let message_bytes = Bytes::from(message);
 
@@ -178,6 +177,7 @@ mod tests {
                 name: TOKEN_NAME.to_string(),
                 decimals: TOKEN_DECIMALS,
                 initial_supply: INITIAL_SUPPLY.into(),
+                chain_name: "test".to_string()
             },
         );
 
@@ -221,12 +221,14 @@ mod tests {
         };
 
         let message = build_message(
-            &from_hash.value(),
-            &to_hash.0,
+            from_hash.value(),
+            to_hash.0,
             &amount,
             valid_after,
             valid_before,
             &nonce,
+            "test",
+            contract.address()
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);
@@ -273,12 +275,14 @@ mod tests {
         };
 
         let message = build_message(
-            &from_hash.value(),
-            &to_hash.0,
+            from_hash.value(),
+            to_hash.0,
             &amount,
             valid_after,
             valid_before,
             &nonce,
+            "test",
+            contract.address()
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);
@@ -334,12 +338,14 @@ mod tests {
         };
 
         let message = build_message(
-            &from_hash.value(),
-            &to_hash.0,
+            from_hash.value(),
+            to_hash.0,
             &amount,
             valid_after,
             valid_before,
             &nonce,
+            "test",
+            contract.address()
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);

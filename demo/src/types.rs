@@ -1,3 +1,4 @@
+use casper_types::U256;
 use serde::Serialize;
 
 use serde_json::json;
@@ -54,12 +55,12 @@ impl FlowStep {
             title: "Sign Authorization".to_string(),
             status: "success".to_string(),
             details: serde_json::json!({
-                "from": authorization.from,
-                "to": authorization.to,
-                "amount": authorization.amount,
-                "valid_after": authorization.valid_after,
-                "valid_before": authorization.valid_before,
-                "nonce": authorization.nonce,
+                "from": format!("account-hash-{}", hex::encode(authorization.transfer.from)),
+                "to": format!("account-hash-{}", hex::encode(authorization.transfer.to)),
+                "amount": U256::from_big_endian(&authorization.transfer.value),
+                "valid_after": authorization.transfer.valid_after,
+                "valid_before": authorization.transfer.valid_before,
+                "nonce": u32::from_be_bytes(authorization.transfer.nonce[0..4].try_into().unwrap())
             }),
         }
     }
@@ -83,7 +84,7 @@ impl FlowStep {
             status: "success".to_string(),
             details: serde_json::json!({
                 "is_valid": true,
-                "payer": payer,
+                "payer": format!("account-hash-{}", payer.unwrap_or_default()),
             }),
         }
     }

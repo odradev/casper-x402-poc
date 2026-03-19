@@ -12,7 +12,7 @@ test-one name:
 
 # Run the demo (resource server + client flow)
 run-demo: copy-node-keys
-    cargo run -p demo
+    X402_TOKEN_ADDRESS=$(docker compose exec facilitator cat /deployed/contract_package_hash) cargo run -p demo
 
 # Run facilitator and demo together (facilitator in background)
 run-all:
@@ -57,3 +57,6 @@ docker-restart service:
 
 copy-node-keys:
     docker exec casper-x402-poc-nctl-1 cat /home/casper/casper-nctl/assets/net-1/users/user-1/secret_key.pem > .node_keys/secret_key.pem
+
+run-app: build-contract
+    docker compose up --build -d

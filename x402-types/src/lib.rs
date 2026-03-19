@@ -41,12 +41,7 @@ pub struct PaymentRequired {
 /// The signed authorization (all fields hex-encoded bytes).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CasperAuthorization {
-    pub from: String,
-    pub to: String,
-    pub amount: String,
-    pub valid_after: u64,
-    pub valid_before: u64,
-    pub nonce: String,
+    pub transfer: x402_eip712::TransferAuthorization,
     pub public_key: String,
     pub signature: String,
 }
@@ -107,3 +102,5 @@ pub struct SettleResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payer: Option<String>,
 }
+
+pub use x402_eip712::TransferAuthorization;

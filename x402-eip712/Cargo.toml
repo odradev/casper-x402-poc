@@ -1,0 +1,10 @@
+[package]
+name = "x402-eip712"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+casper-eip-712 = { workspace = true}
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+serde = { version = "1", features = ["derive"] }

@@ -14,11 +14,13 @@ odra = { workspace = true }
 odra-casper-livenet-env = { workspace = true}
 tokio = { version = "1", features = ["full"] }
 x402-types = { path = "../x402-types" }
+x402-eip712 = { path = "../x402-eip712"}
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 casper-types = "6.1"
 hex = "0.4"
 anyhow = "1"
+casper-eip-712 = { workspace = true }
 thiserror = "1"
 dotenv = "0.15"

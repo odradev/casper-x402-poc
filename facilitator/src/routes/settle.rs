@@ -26,7 +26,7 @@ pub async fn handle_settle(
     };
 
     // Verify off-chain first
-    let payer = match verify_authorization(&auth, &req.payment_requirements) {
+    let payer = match verify_authorization(&auth, &req.payment_requirements).await {
         Ok(p) => p,
         Err(reason) => {
             return (
@@ -41,34 +41,20 @@ pub async fn handle_settle(
         }
     };
 
-    // Parse amount from string to u64 for on-chain call
-    let amount: u64 = match auth.amount.parse() {
-        Ok(a) => a,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(SettleResponse {
-                    success: false,
-                    transaction: None,
-                    error_reason: Some(format!("Invalid amount: {}", e)),
-                    payer: None,
-                }),
-            );
-        }
-    };
+    let transfer = &auth.transfer;
 
     // Real settlement via Casper node
     match state
         .settler
         .call_transfer_with_authorization(
-            &auth.from,
-            &auth.to,
-            amount,
-            auth.valid_after,
-            auth.valid_before,
-            &auth.nonce,
-            &auth.public_key,
-            &auth.signature,
+            transfer.from,
+            transfer.to,
+            transfer.value,
+            transfer.valid_after,
+            transfer.valid_before,
+            transfer.nonce,
+            auth.public_key.clone(),
+            auth.signature.clone(),
         )
         .await
     {

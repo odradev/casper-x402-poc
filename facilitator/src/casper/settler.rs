@@ -4,18 +4,13 @@ use cep18_x402::cep18_x402::Cep18X402HostRef;
 use odra::{host::HostRef, prelude::Address};
 
 /// Handles on-chain settlement of x402 payments on Casper Network.
-///
-/// In mock mode this returns a fake transaction hash without touching the network.
-/// In real mode it would use casper-client to submit a TransactionV1.
 pub struct CasperSettler {
-    // host_env: HostEnv,
     x402_token_address: Address,
 }
 
 impl CasperSettler {
     pub fn from_env() -> Result<Self> {
         Ok(CasperSettler {
-            // host_env: odra_casper_livenet_env::env(),
             x402_token_address: std::env::var("X402_TOKEN_ADDRESS")
                 .context("Missing X402_TOKEN_ADDRESS env var")?
                 .parse()
@@ -27,46 +22,35 @@ impl CasperSettler {
     /// Submit a `transfer_with_authorization` call to the Casper network.
     pub async fn call_transfer_with_authorization(
         &self,
-        from: &str,
-        to: &str,
-        amount: u64,
+        from: [u8; 32],
+        to: [u8; 32],
+        value: [u8; 32],
         valid_after: u64,
         valid_before: u64,
-        nonce_hex: &str,
-        public_key_hex: &str,
-        signature_hex: &str,
+        nonce: [u8; 32],
+        public_key_hex: String,
+        signature_hex: String,
     ) -> Result<String> {
-        // In a full implementation this would:
-        //
-        //   1. Load the secret key from self.secret_key_path
-        //   2. Build RuntimeArgs with all authorization fields
-        //   3. Call TransactionV1Builder::new_targeting_package(...)
-        //   4. Submit via casper_client::put_transaction(...)
-        //   5. Return the hex-encoded transaction hash
-        //
-        // For now we return a descriptive placeholder so callers can test the
-        // full flow without a live Casper node.
         let address = self.x402_token_address;
-        let from = format!("account-hash-{}", from);
-        let to = format!("account-hash-{}", to);
-        let nonce = hex::decode(nonce_hex).context("Invalid nonce hex")?;
-        let public_key_hex = public_key_hex.to_string();
+        let from_str = format!("account-hash-{}", hex::encode(from));
+        let to_str = format!("account-hash-{}", hex::encode(to));
+        let amount = odra::casper_types::U256::from_big_endian(&value);
         println!(
             "Calling transfer_with_authorization with: from={}, to={}, amount={}",
-            from, to, amount
+            from_str, to_str, amount
         );
-        let sig_bytes = hex::decode(signature_hex).context("Invalid signature hex")?;
+        let sig_bytes = hex::decode(&signature_hex).context("Invalid signature hex")?;
         tokio::task::spawn_blocking(move || {
             let env = odra_casper_livenet_env::env();
             env.set_gas(2_500_000_000);
             let mut token = Cep18X402HostRef::new(address, env);
             let result = token.try_transfer_with_authorization(
-                from.parse().ok().context("Invalid from address")?,
-                to.parse().ok().context("Invalid to address")?,
-                amount.into(),
+                from_str.parse().ok().context("Invalid from address")?,
+                to_str.parse().ok().context("Invalid to address")?,
+                amount,
                 valid_after,
                 valid_before,
-                Bytes::from(nonce),
+                Bytes::from(nonce.to_vec()),
                 PublicKey::from_hex(&public_key_hex)?,
                 sig_bytes.into(),
             );
@@ -75,7 +59,7 @@ impl CasperSettler {
                 return Err(anyhow!("Contract call failed: {:?}", e));
             }
 
-            println!("Successfully called transfer_with_authorization with");
+            println!("Successfully called transfer_with_authorization");
             Ok("real-tx-hash-placeholder".to_string())
         })
         .await?

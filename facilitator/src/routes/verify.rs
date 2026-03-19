@@ -4,6 +4,7 @@ use casper_types::{
     bytesrepr::FromBytes,
     crypto::{verify, PublicKey, Signature},
 };
+use tokio::sync::OnceCell;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
@@ -11,112 +12,86 @@ use crate::{
     AppState,
 };
 
-/// Build the 159-byte authorization message pre-image (same as contract).
-pub fn build_message(
-    from_hash: &[u8; 32],
-    to_hash: &[u8; 32],
-    amount: u64,
-    valid_after: u64,
-    valid_before: u64,
-    nonce: &[u8],
-) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(159);
-    msg.extend_from_slice(b"casper-x402-v2:");
-    msg.extend_from_slice(from_hash);
-    msg.extend_from_slice(to_hash);
-
-    // amount as U256 little-endian 32 bytes
-    let mut amount_bytes = [0u8; 32];
-    amount_bytes[..8].copy_from_slice(&amount.to_le_bytes());
-    msg.extend_from_slice(&amount_bytes);
-
-    msg.extend_from_slice(&valid_after.to_le_bytes());
-    msg.extend_from_slice(&valid_before.to_le_bytes());
-
-    let mut nonce_padded = [0u8; 32];
-    let len = nonce.len().min(32);
-    nonce_padded[..len].copy_from_slice(&nonce[..len]);
-    msg.extend_from_slice(&nonce_padded);
-
-    msg
+pub static X402_DOMAIN: OnceCell<casper_eip_712::DomainSeparator> = OnceCell::const_new();
+pub async fn x402_domain() -> &'static casper_eip_712::DomainSeparator {
+    X402_DOMAIN.get_or_init(|| async {
+        let x402_token_address_str = std::env::var("X402_TOKEN_ADDRESS")
+                .expect("Missing X402_TOKEN_ADDRESS env var");
+        let x402_token_address_str = x402_token_address_str
+                .strip_prefix("hash-")
+                .expect("Invalid contract format");
+        let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
+            .expect("Missing ODRA_CASPER_LIVENET_CHAIN_NAME");
+        let mut x402_token_address = [0u8; 32];
+        let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
+        x402_token_address.copy_from_slice(&bytes);
+        x402_eip712::x402_domain(&chain_name, x402_token_address)
+    }).await
 }
 
 /// Validate a `CasperAuthorization` against payment requirements — off-chain only.
-pub fn verify_authorization(
+pub async fn verify_authorization(
     auth: &CasperAuthorization,
     requirements: &PaymentRequirements,
 ) -> Result<String, String> {
-    // 1. Check destination and amount match requirements
-    if auth.to != requirements.pay_to {
+    let transfer = &auth.transfer;
+
+    // 1. Check destination matches requirements
+    let expected_to = hex::decode(&requirements.pay_to)
+        .map_err(|e| format!("invalid pay_to hex: {}", e))?;
+    if expected_to.len() != 32 {
+        return Err("pay_to must be 32 bytes".to_string());
+    }
+    if transfer.to != expected_to.as_slice() {
         return Err(format!(
             "payment destination mismatch: got {}, want {}",
-            auth.to, requirements.pay_to
-        ));
-    }
-    if auth.amount != requirements.amount {
-        return Err(format!(
-            "amount mismatch: got {}, want {}",
-            auth.amount, requirements.amount
+            hex::encode(transfer.to),
+            requirements.pay_to
         ));
     }
 
-    // Parse amount from string to u64 for message building
-    let amount: u64 = auth
+    // 2. Check amount matches requirements
+    let required_amount: u64 = requirements
         .amount
         .parse()
-        .map_err(|e| format!("invalid amount: {}", e))?;
+        .map_err(|e| format!("invalid required amount: {}", e))?;
+    let mut required_value = [0u8; 32];
+    required_value[32 - 8..].copy_from_slice(&required_amount.to_be_bytes());
+    if transfer.value != required_value {
+        return Err(format!(
+            "amount mismatch: got {}, want {}",
+            hex::encode(transfer.value),
+            requirements.amount
+        ));
+    }
 
-    // 2. Time window check
+    // 3. Time window check
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_secs();
-    if now <= auth.valid_after {
+    if now <= transfer.valid_after {
         return Err("authorization not yet valid".to_string());
     }
-    if now >= auth.valid_before {
+    if now >= transfer.valid_before {
         return Err("authorization expired".to_string());
     }
 
-    // 3. Decode public key
+    // 4. Decode public key
     let pk_bytes =
         hex::decode(&auth.public_key).map_err(|e| format!("invalid public_key hex: {}", e))?;
     let (public_key, _) = PublicKey::from_bytes(&pk_bytes)
         .map_err(|e| format!("cannot parse public key: {:?}", e))?;
 
-    // 4. Verify public_key → from address
+    // 5. Verify public_key → from address
     let derived_hash = AccountHash::from(&public_key);
-    let from_bytes = hex::decode(&auth.from).map_err(|e| format!("invalid from hex: {}", e))?;
-    if from_bytes.len() != 32 {
-        return Err("from address must be 32 bytes".to_string());
-    }
-    let mut from_arr = [0u8; 32];
-    from_arr.copy_from_slice(&from_bytes);
-    let from_hash = AccountHash(from_arr);
+    let from_hash = AccountHash(transfer.from);
     if derived_hash != from_hash {
         return Err("public key does not match from address".to_string());
     }
 
-    // 5. Decode to address
-    let to_bytes = hex::decode(&auth.to).map_err(|e| format!("invalid to hex: {}", e))?;
-    if to_bytes.len() != 32 {
-        return Err("to address must be 32 bytes".to_string());
-    }
-    let mut to_arr = [0u8; 32];
-    to_arr.copy_from_slice(&to_bytes);
-
-    // 6. Decode nonce
-    let nonce = hex::decode(&auth.nonce).map_err(|e| format!("invalid nonce hex: {}", e))?;
-
-    // 7. Build message and verify signature
-    let message = build_message(
-        &from_arr,
-        &to_arr,
-        amount,
-        auth.valid_after,
-        auth.valid_before,
-        &nonce,
-    );
+    // 6. Build EIP-712 message and verify signature
+    let message = casper_eip_712::hash_typed_data(x402_domain().await, transfer);
 
     let sig_bytes =
         hex::decode(&auth.signature).map_err(|e| format!("invalid signature hex: {}", e))?;
@@ -126,7 +101,7 @@ pub fn verify_authorization(
     verify(&message, &signature, &public_key)
         .map_err(|e| format!("signature verification failed: {:?}", e))?;
 
-    Ok(auth.from.clone())
+    Ok(hex::encode(transfer.from))
 }
 
 pub async fn handle_verify(
@@ -147,7 +122,7 @@ pub async fn handle_verify(
         }
     };
 
-    match verify_authorization(&auth, &req.payment_requirements) {
+    match verify_authorization(&auth, &req.payment_requirements).await {
         Ok(payer) => {
             println!(
                 "Authorization valid for payer {}. Responding with 200 OK.",

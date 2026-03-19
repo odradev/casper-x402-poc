@@ -9,6 +9,7 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY x402-types/ x402-types/
+COPY x402-eip712/ x402-eip712/
 COPY contract/ contract/
 COPY facilitator/ facilitator/
 COPY demo/ demo/

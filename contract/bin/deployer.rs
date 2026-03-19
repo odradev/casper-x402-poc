@@ -2,6 +2,8 @@ use cep18_x402::cep18_x402::{Cep18X402, Cep18X402InitArgs};
 use odra::{host::Deployer, prelude::Addressable};
 
 fn main() {
+    let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
+        .expect("Missing chain name");
     let address_file_path = std::env::var("X402_CONTRACT_ADDRESS_FILE")
         .expect("Address file path must be set in X402_CONTRACT_ADDRESS_FILE env var");
     // Check if the contract is already deployed by looking for the address file
@@ -22,6 +24,7 @@ fn main() {
             name: "Casper X402 Token".to_string(),
             decimals: 2,
             initial_supply: 1_000_000_000.into(),
+            chain_name
         },
     );
     let contract = contract.expect("Failed to deploy contract");

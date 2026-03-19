@@ -7,7 +7,6 @@ use axum::{
     Router,
 };
 use std::sync::Arc;
-
 use casper::settler::CasperSettler;
 
 #[derive(Clone)]

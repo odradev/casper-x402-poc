@@ -13,6 +13,7 @@ use casper_types::crypto::{PublicKey, SecretKey};
 
 use config::Config;
 use types::{PaymentRequired, PaymentRequirements, ResourceInfo};
+use x402_eip712::x402_domain;
 
 pub const HEADER_PAYMENT_REQUIRED: &str = "PAYMENT-REQUIRED";
 pub const HEADER_PAYMENT_SIGNATURE: &str = "PAYMENT-SIGNATURE";
@@ -57,6 +58,7 @@ async fn main() -> Result<()> {
         public_key,
         resource_url: config.resource_url.clone(),
         facilitator_url: config.facilitator_url.clone(),
+        domain: x402_domain(&config.chain_name, config.x402_token_address)
     });
 
     // Resource server router (already has its own state applied)
