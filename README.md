@@ -1,6 +1,6 @@
 # Casper x402 — Proof of Concept
 
-A proof-of-concept implementation of the [x402 payment protocol](https://www.x402.org/) on the [Casper blockchain](https://casper.network/). Enables HTTP 402-based micropayments using EIP-3009-style `transfer_with_authorization` on CEP-18 tokens.
+A proof-of-concept implementation of the [x402 payment protocol](https://www.x402.org/) on the [Casper blockchain](https://casper.network/). Enables HTTP 402-based micropayments using EIP-3009-style `transfer_with_authorization` on CEP-18 tokens, with [EIP-712](https://eips.ethereum.org/EIPS/eip-712) typed structured data hashing for authorization messages.
 
 ## What is x402?
 
@@ -11,7 +11,7 @@ The [x402 protocol](https://www.x402.org/) brings the long-dormant HTTP 402 ("Pa
 3. The client signs a payment authorization off-chain and retries the request with a payment header.
 4. The server verifies the payment (optionally settling on-chain) and returns the resource.
 
-This project adapts the protocol for the Casper network by implementing gasless, signature-based token transfers — similar to [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) (`transferWithAuthorization`) — on top of the CEP-18 token standard.
+This project adapts the protocol for the Casper network by implementing gasless, signature-based token transfers — similar to [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) (`transferWithAuthorization`) — on top of the CEP-18 token standard. Authorization messages use [EIP-712](https://eips.ethereum.org/EIPS/eip-712) typed structured data hashing for secure, unambiguous off-chain signing.
 
 ## Architecture
 
@@ -35,19 +35,23 @@ This project adapts the protocol for the Casper network by implementing gasless,
                                                                      └──────────────┘
 ```
 
-The project consists of four workspace members:
+The project consists of five crates:
 
 ### `contract/` — Smart Contract (CEP-18 + x402)
 
 A CEP-18 token contract extended with `transfer_with_authorization` — gasless, off-chain-signed transfers. Built with the [Odra](https://github.com/odradev/odra) smart contract framework.
 
-- **Authorization pre-image**: `"casper-x402-v2:" || from || to || amount || valid_after || valid_before || nonce`
+- **EIP-712 authorization**: messages are hashed using a domain separator (`chain_name`, `contract_package_hash`) and a `TransferAuthorization` struct (`from`, `to`, `value`, `valid_after`, `valid_before`, `nonce`)
 - **On-chain verification**: replay protection (nonce mapping), time-window checks, Ed25519 signature verification
 - **Standard CEP-18 interface**
 
+### `x402-eip712/` — EIP-712 Types
+
+Defines the EIP-712 domain separator and `TransferAuthorization` struct used across the contract, facilitator, and demo. Implements `casper_eip_712::Eip712Struct` for typed structured data hashing. This is the single source of truth for the authorization message format.
+
 ### `x402-types/` — Shared Types
 
-Common request/response types used by both the facilitator and demo crates: `PaymentRequired`, `CasperAuthorization`, `PaymentPayload`, `VerifyRequest`, `SettleRequest`, and related structs.
+Common request/response types used by both the facilitator and demo crates: `PaymentRequired`, `CasperAuthorization`, `PaymentPayload`, `VerifyRequest`, `SettleRequest`, and related structs. Re-exports `TransferAuthorization` from `x402-eip712`.
 
 ### `facilitator/` — Settlement Service
 
@@ -159,6 +163,8 @@ just docker-logs facilitator
 
 - **[x402 Protocol Specification](https://www.x402.org/)** — the payment protocol this project implements
 - **[EIP-3009: Transfer With Authorization](https://eips.ethereum.org/EIPS/eip-3009)** — the Ethereum standard that inspired the `transfer_with_authorization` pattern
+- **[EIP-712: Typed Structured Data Hashing](https://eips.ethereum.org/EIPS/eip-712)** — the standard used for authorization message hashing
+- **[casper-eip-712](https://github.com/casper-ecosystem/casper-eip-712)** — Casper-native EIP-712 implementation used for typed data hashing
 - **[Casper Network](https://casper.network/)** — the L1 blockchain
 - **[CEP-18 Token Standard](https://github.com/casper-ecosystem/cep18)** — Casper's fungible token standard (analogous to ERC-20)
 - **[Odra Framework](https://github.com/odradev/odra)** — smart contract framework used to build the contract
