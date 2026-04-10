@@ -9,8 +9,8 @@ use crate::events::TransferWithAuthorization;
 
 /// Build the EIP-712 hash for a transfer authorization.
 pub fn build_message(
-    from_hash: [u8; 32],
-    to_hash: [u8; 32],
+    from_hash: &Address,
+    to_hash: &Address,
     amount: &U256,
     valid_after: u64,
     valid_before: u64,
@@ -25,9 +25,14 @@ pub fn build_message(
     let len = nonce.len().min(32);
     nonce_padded[..len].copy_from_slice(&nonce[..len]);
 
+    let from_tag = match from_hash { Address::Account(_) => x402_eip712::ACCOUNT_TAG, Address::Contract(_) => x402_eip712::CONTRACT_TAG };
+    let to_tag   = match to_hash   { Address::Account(_) => x402_eip712::ACCOUNT_TAG, Address::Contract(_) => x402_eip712::CONTRACT_TAG };
+    let from_eip712 = x402_eip712::casper_address_from_parts(from_tag, from_hash.value());
+    let to_eip712   = x402_eip712::casper_address_from_parts(to_tag,   to_hash.value());
+
     let auth = x402_eip712::TransferAuthorization {
-        from: from_hash,
-        to: to_hash,
+        from: from_eip712,
+        to: to_eip712,
         value: value_bytes,
         valid_after,
         valid_before,
@@ -94,8 +99,8 @@ impl Cep18X402 {
 
         // 6. Build message and verify signature
         let message = build_message(
-            from.value(),
-            to.value(),
+            &from,
+            &to,
             &amount,
             valid_after,
             valid_before,
@@ -215,14 +220,9 @@ mod tests {
         let from = Address::Account(from_hash);
         let to = recipient;
 
-        let to_hash = match to.as_account_hash() {
-            Some(h) => *h,
-            None => AccountHash([0u8; 32]),
-        };
-
         let message = build_message(
-            from_hash.value(),
-            to_hash.0,
+            &from,
+            &to,
             &amount,
             valid_after,
             valid_before,
@@ -269,14 +269,9 @@ mod tests {
         let from = Address::Account(from_hash);
         let to = recipient;
 
-        let to_hash = match to.as_account_hash() {
-            Some(h) => *h,
-            None => AccountHash([0u8; 32]),
-        };
-
         let message = build_message(
-            from_hash.value(),
-            to_hash.0,
+            &from,
+            &to,
             &amount,
             valid_after,
             valid_before,
@@ -332,14 +327,9 @@ mod tests {
         let from = Address::Account(from_hash);
         let to = recipient;
 
-        let to_hash = match to.as_account_hash() {
-            Some(h) => *h,
-            None => AccountHash([0u8; 32]),
-        };
-
         let message = build_message(
-            from_hash.value(),
-            to_hash.0,
+            &from,
+            &to,
             &amount,
             valid_after,
             valid_before,

@@ -1,6 +1,5 @@
 use casper_types::U256;
 use serde::Serialize;
-
 use serde_json::json;
 pub use x402_types::{
     CasperAuthorization, PaymentPayload, PaymentRequired, PaymentRequirements, ResourceInfo,
@@ -33,7 +32,7 @@ impl FlowStep {
             details: serde_json::json!({
                 "response": "402 Payment Required",
                 "amount": req.amount,
-                "pay_to": req.pay_to,
+                "pay_to": x402_eip712::format_casper_address(&req.pay_to),
                 "scheme": req.scheme,
                 "network": req.network,
             }),
@@ -55,8 +54,8 @@ impl FlowStep {
             title: "Sign Authorization".to_string(),
             status: "success".to_string(),
             details: serde_json::json!({
-                "from": format!("account-hash-{}", hex::encode(authorization.transfer.from)),
-                "to": format!("account-hash-{}", hex::encode(authorization.transfer.to)),
+                "from": x402_eip712::format_casper_address(&authorization.transfer.from),
+                "to": x402_eip712::format_casper_address(&authorization.transfer.to),
                 "amount": U256::from_big_endian(&authorization.transfer.value),
                 "valid_after": authorization.transfer.valid_after,
                 "valid_before": authorization.transfer.valid_before,

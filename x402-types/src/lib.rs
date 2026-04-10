@@ -19,7 +19,8 @@ pub struct PaymentRequirements {
     pub network: String,
     pub asset: String,
     pub amount: String,
-    pub pay_to: String,
+    #[serde(with = "x402_eip712::serde_address")]
+    pub pay_to: Address,
     pub max_timeout_seconds: u64,
     #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
     pub extra: serde_json::Value,
@@ -103,4 +104,5 @@ pub struct SettleResponse {
     pub payer: Option<String>,
 }
 
+use x402_eip712::Address;
 pub use x402_eip712::TransferAuthorization;

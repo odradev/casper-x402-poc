@@ -3,37 +3,37 @@ members = ["contract", "x402-types", "facilitator", "demo"]
 resolver = "2"
 
 [workspace.dependencies.odra]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.odra-build]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.odra-test]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.odra-modules]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.odra-casper-livenet-env]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.odra-cli]
-version = "2.5.0"
+version = "2.6.0"
 features = []
 default-features = false
 
 [workspace.dependencies.casper-eip-712]
-version = "1.0.0"
+version = "1.1.0"
 features = []
 default-features = false
 

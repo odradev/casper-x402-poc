@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use casper_types::{bytesrepr::Bytes, AsymmetricType, PublicKey};
 use cep18_x402::cep18_x402::Cep18X402HostRef;
 use odra::{host::HostRef, prelude::Address};
+use x402_eip712::Address as Eip712Address;
 
 /// Handles on-chain settlement of x402 payments on Casper Network.
 pub struct CasperSettler {
@@ -22,8 +23,8 @@ impl CasperSettler {
     /// Submit a `transfer_with_authorization` call to the Casper network.
     pub async fn call_transfer_with_authorization(
         &self,
-        from: [u8; 32],
-        to: [u8; 32],
+        from: Eip712Address,
+        to: Eip712Address,
         value: [u8; 32],
         valid_after: u64,
         valid_before: u64,
@@ -32,8 +33,8 @@ impl CasperSettler {
         signature_hex: String,
     ) -> Result<String> {
         let address = self.x402_token_address;
-        let from_str = format!("account-hash-{}", hex::encode(from));
-        let to_str = format!("account-hash-{}", hex::encode(to));
+        let from_str = x402_eip712::format_casper_address(&from);
+        let to_str = x402_eip712::format_casper_address(&to);
         let amount = odra::casper_types::U256::from_big_endian(&value);
         println!(
             "Calling transfer_with_authorization with: from={}, to={}, amount={}",

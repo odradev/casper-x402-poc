@@ -8,8 +8,7 @@ use tokio::sync::OnceCell;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
-    types::{CasperAuthorization, PaymentRequirements, VerifyRequest, VerifyResponse},
-    AppState,
+    AppState, types::{CasperAuthorization, PaymentRequirements, VerifyRequest, VerifyResponse}
 };
 
 pub static X402_DOMAIN: OnceCell<casper_eip_712::DomainSeparator> = OnceCell::const_new();
@@ -37,19 +36,17 @@ pub async fn verify_authorization(
     let transfer = &auth.transfer;
 
     // 1. Check destination matches requirements
-    let expected_to = hex::decode(&requirements.pay_to)
-        .map_err(|e| format!("invalid pay_to hex: {}", e))?;
-    if expected_to.len() != 32 {
-        return Err("pay_to must be 32 bytes".to_string());
-    }
-    if transfer.to != expected_to.as_slice() {
+    let expected_to = x402_eip712::casper_address_to_bytes(&requirements.pay_to)
+        .map_err(|e| format!("invalid pay_to: {}", e))?;
+    let actual_to = x402_eip712::casper_address_to_bytes(&transfer.to)
+        .map_err(|e| format!("invalid transfer.to address: {}", e))?;
+    if actual_to != expected_to {
         return Err(format!(
             "payment destination mismatch: got {}, want {}",
-            hex::encode(transfer.to),
-            requirements.pay_to
+            x402_eip712::format_casper_address(&transfer.to),
+            x402_eip712::format_casper_address(&requirements.pay_to),
         ));
     }
-
     // 2. Check amount matches requirements
     let required_amount: u64 = requirements
         .amount
@@ -85,8 +82,9 @@ pub async fn verify_authorization(
 
     // 5. Verify public_key → from address
     let derived_hash = AccountHash::from(&public_key);
-    let from_hash = AccountHash(transfer.from);
-    if derived_hash != from_hash {
+    let from_bytes = x402_eip712::casper_address_to_bytes(&transfer.from)
+        .map_err(|e| format!("invalid from address: {}", e))?;
+    if derived_hash != AccountHash(from_bytes) {
         return Err("public key does not match from address".to_string());
     }
 
@@ -101,7 +99,7 @@ pub async fn verify_authorization(
     verify(&message, &signature, &public_key)
         .map_err(|e| format!("signature verification failed: {:?}", e))?;
 
-    Ok(hex::encode(transfer.from))
+    Ok(x402_eip712::format_casper_address(&transfer.from))
 }
 
 pub async fn handle_verify(
