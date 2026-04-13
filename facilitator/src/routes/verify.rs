@@ -3,29 +3,33 @@ use casper_types::{
     account::AccountHash,
     bytesrepr::FromBytes,
     crypto::{verify, PublicKey, Signature},
+    U256,
 };
-use tokio::sync::OnceCell;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::OnceCell;
 
 use crate::{
-    AppState, types::{CasperAuthorization, PaymentRequirements, VerifyRequest, VerifyResponse}
+    types::{CasperAuthorization, PaymentRequirements, VerifyRequest, VerifyResponse},
+    AppState,
 };
 
 pub static X402_DOMAIN: OnceCell<casper_eip_712::DomainSeparator> = OnceCell::const_new();
 pub async fn x402_domain() -> &'static casper_eip_712::DomainSeparator {
-    X402_DOMAIN.get_or_init(|| async {
-        let x402_token_address_str = std::env::var("X402_TOKEN_ADDRESS")
-                .expect("Missing X402_TOKEN_ADDRESS env var");
-        let x402_token_address_str = x402_token_address_str
+    X402_DOMAIN
+        .get_or_init(|| async {
+            let x402_token_address_str =
+                std::env::var("X402_TOKEN_ADDRESS").expect("Missing X402_TOKEN_ADDRESS env var");
+            let x402_token_address_str = x402_token_address_str
                 .strip_prefix("hash-")
                 .expect("Invalid contract format");
-        let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
-            .expect("Missing ODRA_CASPER_LIVENET_CHAIN_NAME");
-        let mut x402_token_address = [0u8; 32];
-        let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
-        x402_token_address.copy_from_slice(&bytes);
-        x402_eip712::x402_domain(&chain_name, x402_token_address)
-    }).await
+            let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
+                .expect("Missing ODRA_CASPER_LIVENET_CHAIN_NAME");
+            let mut x402_token_address = [0u8; 32];
+            let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
+            x402_token_address.copy_from_slice(&bytes);
+            x402_eip712::x402_domain(&chain_name, x402_token_address)
+        })
+        .await
 }
 
 /// Validate a `CasperAuthorization` against payment requirements — off-chain only.
@@ -63,14 +67,18 @@ pub async fn verify_authorization(
     }
 
     // 3. Time window check
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_secs();
-    if now <= transfer.valid_after {
+    let now = U256::from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_secs(),
+    );
+    let valid_after = U256::from_big_endian(&transfer.valid_after);
+    let valid_before = U256::from_big_endian(&transfer.valid_before);
+    if now <= valid_after {
         return Err("authorization not yet valid".to_string());
     }
-    if now >= transfer.valid_before {
+    if now >= valid_before {
         return Err("authorization expired".to_string());
     }
 

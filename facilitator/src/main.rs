@@ -6,8 +6,8 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use std::sync::Arc;
 use casper::settler::CasperSettler;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {

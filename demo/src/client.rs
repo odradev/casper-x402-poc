@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use casper_eip_712::DomainSeparator;
 use casper_types::{
-    U256, account::AccountHash, bytesrepr::ToBytes, crypto::{PublicKey, SecretKey}
+    account::AccountHash,
+    bytesrepr::ToBytes,
+    crypto::{PublicKey, SecretKey},
+    U256,
 };
 use rand::RngCore;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,17 +27,21 @@ pub fn sign_authorization(
         .map_err(|_| anyhow!("Invalid pay_to address: {}", pay_to_str))?;
 
     // Parse amount from string to U256
-    let amount = U256::from_dec_str(&requirements.amount)
-        .map_err(|e| anyhow!("invalid amount: {}", e))?;
+    let amount =
+        U256::from_dec_str(&requirements.amount).map_err(|e| anyhow!("invalid amount: {}", e))?;
 
     // Generate random 32-byte nonce
     let mut nonce = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut nonce);
 
     // Time window
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let valid_after = now - 1;
-    let valid_before = now + requirements.max_timeout_seconds;
+    let now = U256::from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
+    let valid_after = now - U256::from(1);
+    let valid_before = now + U256::from(requirements.max_timeout_seconds);
+    let mut valid_after_bytes = [0u8; 32];
+    let mut valid_before_bytes = [0u8; 32];
+    valid_after.to_big_endian(&mut valid_after_bytes);
+    valid_before.to_big_endian(&mut valid_before_bytes);
 
     // Build and sign message
     let mut value_bytes = [0u8; 32];
@@ -45,8 +52,8 @@ pub fn sign_authorization(
         from: from_addr,
         to: to_addr,
         value: value_bytes,
-        valid_after,
-        valid_before,
+        valid_after: valid_after_bytes,
+        valid_before: valid_before_bytes,
         nonce,
     };
     let message = casper_eip_712::hash_typed_data(&domain, &transfer);

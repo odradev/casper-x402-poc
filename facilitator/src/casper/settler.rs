@@ -26,8 +26,8 @@ impl CasperSettler {
         from: Eip712Address,
         to: Eip712Address,
         value: [u8; 32],
-        valid_after: u64,
-        valid_before: u64,
+        valid_after: [u8; 32],
+        valid_before: [u8; 32],
         nonce: [u8; 32],
         public_key_hex: String,
         signature_hex: String,
@@ -36,6 +36,8 @@ impl CasperSettler {
         let from_str = x402_eip712::format_casper_address(&from);
         let to_str = x402_eip712::format_casper_address(&to);
         let amount = odra::casper_types::U256::from_big_endian(&value);
+        let valid_after = odra::casper_types::U256::from_big_endian(&valid_after);
+        let valid_before = odra::casper_types::U256::from_big_endian(&valid_before);
         println!(
             "Calling transfer_with_authorization with: from={}, to={}, amount={}",
             from_str, to_str, amount

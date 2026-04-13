@@ -60,14 +60,16 @@ pub fn casper_address_tag(addr: &Address) -> Result<u8, &'static str> {
 pub fn format_casper_address(addr: &Address) -> alloc::string::String {
     match addr {
         Address::Casper(b) => {
-            let hex = b[1..].iter().fold(alloc::string::String::new(), |mut s, byte| {
-                s.push_str(&alloc::format!("{:02x}", byte));
-                s
-            });
+            let hex = b[1..]
+                .iter()
+                .fold(alloc::string::String::new(), |mut s, byte| {
+                    s.push_str(&alloc::format!("{:02x}", byte));
+                    s
+                });
             match b[0] {
-                ACCOUNT_TAG  => alloc::format!("account-hash-{}", hex),
+                ACCOUNT_TAG => alloc::format!("account-hash-{}", hex),
                 CONTRACT_TAG => alloc::format!("hash-{}", hex),
-                tag          => alloc::format!("unknown-{:02x}-{}", tag, hex),
+                tag => alloc::format!("unknown-{:02x}-{}", tag, hex),
             }
         }
         Address::Eth(b) => {
@@ -80,32 +82,43 @@ pub fn format_casper_address(addr: &Address) -> alloc::string::String {
     }
 }
 /// Build the EIP-712 domain separator for x402.
-pub fn x402_domain(chain_name: &str, x402_token_address: [u8; 32]) -> casper_eip_712::DomainSeparator {
+pub fn x402_domain(
+    chain_name: &str,
+    x402_token_address: [u8; 32],
+) -> casper_eip_712::DomainSeparator {
     casper_eip_712::DomainBuilder::new()
         .name("Cep18x402")
         .version("1")
-        .custom_field("chain_name", casper_eip_712::DomainFieldValue::String(chain_name.into()))
-        .custom_field("contract_package_hash", casper_eip_712::DomainFieldValue::Bytes32(x402_token_address))
+        .custom_field(
+            "chain_name",
+            casper_eip_712::DomainFieldValue::String(chain_name.into()),
+        )
+        .custom_field(
+            "contract_package_hash",
+            casper_eip_712::DomainFieldValue::Bytes32(x402_token_address),
+        )
         .build()
 }
 
-
 /// EIP-3009/x402-style transfer authorization for Casper.
-#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, Clone, serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(Debug, Clone, serde::Serialize, serde::Deserialize)
+)]
 pub struct TransferAuthorization {
     #[cfg_attr(not(target_arch = "wasm32"), serde(with = "serde_address"))]
-    pub from: Address,       // Key::AccountHash
+    pub from: Address, // Key::AccountHash
     #[cfg_attr(not(target_arch = "wasm32"), serde(with = "serde_address"))]
-    pub to: Address,         // Key::AccountHash
-    pub value: [u8; 32],      // U256
-    pub valid_after: u64,
-    pub valid_before: u64,
+    pub to: Address, // Key::AccountHash
+    pub value: [u8; 32],        // U256
+    pub valid_after: [u8; 32],  // U256 (timestamp)
+    pub valid_before: [u8; 32], // U256 (timestamp)
     pub nonce: [u8; 32],
 }
 
 impl casper_eip_712::Eip712Struct for TransferAuthorization {
     fn type_string() -> &'static str {
-        "TransferAuthorization(address from,address to,uint256 value,uint64 valid_after,uint64 valid_before,bytes32 nonce)"
+        "TransferAuthorization(address from,address to,uint256 value,uint256 valid_after,uint256 valid_before,bytes32 nonce)"
     }
 
     fn encode_data(&self) -> alloc::vec::Vec<u8> {
@@ -113,8 +126,8 @@ impl casper_eip_712::Eip712Struct for TransferAuthorization {
         data.extend(casper_eip_712::encode_address(self.from));
         data.extend(casper_eip_712::encode_address(self.to));
         data.extend(casper_eip_712::encode_uint256(self.value));
-        data.extend(casper_eip_712::encode_uint64(self.valid_after));
-        data.extend(casper_eip_712::encode_uint64(self.valid_before));
+        data.extend(casper_eip_712::encode_uint256(self.valid_after));
+        data.extend(casper_eip_712::encode_uint256(self.valid_before));
         data.extend(casper_eip_712::encode_bytes32(self.nonce));
         data
     }
@@ -132,10 +145,12 @@ pub mod serde_address {
             Address::Eth(b) => b.to_vec(),
             Address::Casper(b) => b.to_vec(),
         };
-        let hex = bytes.iter().fold(alloc::string::String::new(), |mut acc, b| {
-            acc.push_str(&alloc::format!("{:02x}", b));
-            acc
-        });
+        let hex = bytes
+            .iter()
+            .fold(alloc::string::String::new(), |mut acc, b| {
+                acc.push_str(&alloc::format!("{:02x}", b));
+                acc
+            });
         hex.serialize(s)
     }
 

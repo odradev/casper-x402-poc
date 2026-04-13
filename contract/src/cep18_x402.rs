@@ -7,53 +7,24 @@ use odra_modules::cep18_token::Cep18;
 use crate::errors::Error;
 use crate::events::TransferWithAuthorization;
 
-/// Build the EIP-712 hash for a transfer authorization.
-pub fn build_message(
-    from_hash: &Address,
-    to_hash: &Address,
-    amount: &U256,
-    valid_after: u64,
-    valid_before: u64,
-    nonce: &[u8],
-    chain_name: &str,
-    contract_address: Address
-) -> Vec<u8> {
-    let mut value_bytes = [0u8; 32];
-    amount.to_big_endian(&mut value_bytes);
-
-    let mut nonce_padded = [0u8; 32];
-    let len = nonce.len().min(32);
-    nonce_padded[..len].copy_from_slice(&nonce[..len]);
-
-    let from_tag = match from_hash { Address::Account(_) => x402_eip712::ACCOUNT_TAG, Address::Contract(_) => x402_eip712::CONTRACT_TAG };
-    let to_tag   = match to_hash   { Address::Account(_) => x402_eip712::ACCOUNT_TAG, Address::Contract(_) => x402_eip712::CONTRACT_TAG };
-    let from_eip712 = x402_eip712::casper_address_from_parts(from_tag, from_hash.value());
-    let to_eip712   = x402_eip712::casper_address_from_parts(to_tag,   to_hash.value());
-
-    let auth = x402_eip712::TransferAuthorization {
-        from: from_eip712,
-        to: to_eip712,
-        value: value_bytes,
-        valid_after,
-        valid_before,
-        nonce: nonce_padded,
-    };
-
-    let domain = x402_eip712::x402_domain(chain_name, contract_address.value());
-    casper_eip_712::hash_typed_data(&domain, &auth).to_vec()
-}
-
 /// CEP-18 token extended with EIP-3009-style transfer_with_authorization.
 #[odra::module(events = [TransferWithAuthorization], errors = Error)]
 pub struct Cep18X402 {
     token: SubModule<Cep18>,
     used_nonces: Mapping<(Address, Bytes), bool>,
-    chain_name: Var<String>
+    chain_name: Var<String>,
 }
 
 #[odra::module]
 impl Cep18X402 {
-    pub fn init(&mut self, symbol: String, name: String, decimals: u8, initial_supply: U256, chain_name: String) {
+    pub fn init(
+        &mut self,
+        symbol: String,
+        name: String,
+        decimals: u8,
+        initial_supply: U256,
+        chain_name: String,
+    ) {
         self.token.init(symbol, name, decimals, initial_supply);
         self.chain_name.set(chain_name);
     }
@@ -63,8 +34,8 @@ impl Cep18X402 {
         from: Address,
         to: Address,
         amount: U256,
-        valid_after: u64,
-        valid_before: u64,
+        valid_after: U256,
+        valid_before: U256,
         nonce: Bytes,
         public_key: PublicKey,
         signature: Bytes,
@@ -79,7 +50,7 @@ impl Cep18X402 {
         }
 
         // 2. block_time() returns milliseconds — convert to seconds
-        let now_secs = self.env().get_block_time() / 1000;
+        let now_secs = U256::from(self.env().get_block_time() / 1000);
 
         // 3. Check valid_after
         if now_secs <= valid_after {
@@ -106,7 +77,7 @@ impl Cep18X402 {
             valid_before,
             &nonce,
             &self.chain_name.get().unwrap_or_revert(self),
-            self.env().self_address()
+            self.env().self_address(),
         );
         let message_bytes = Bytes::from(message);
 
@@ -150,6 +121,54 @@ impl Cep18X402 {
     }
 }
 
+/// Build the EIP-712 hash for a transfer authorization.
+fn build_message(
+    from_hash: &Address,
+    to_hash: &Address,
+    amount: &U256,
+    valid_after: U256,
+    valid_before: U256,
+    nonce: &[u8],
+    chain_name: &str,
+    contract_address: Address,
+) -> Vec<u8> {
+    let mut value_bytes = [0u8; 32];
+    amount.to_big_endian(&mut value_bytes);
+
+    let mut valid_after_bytes = [0u8; 32];
+    valid_after.to_big_endian(&mut valid_after_bytes);
+
+    let mut valid_before_bytes = [0u8; 32];
+    valid_before.to_big_endian(&mut valid_before_bytes);
+
+    let mut nonce_padded = [0u8; 32];
+    let len = nonce.len().min(32);
+    nonce_padded[..len].copy_from_slice(&nonce[..len]);
+
+    let from_tag = match from_hash {
+        Address::Account(_) => x402_eip712::ACCOUNT_TAG,
+        Address::Contract(_) => x402_eip712::CONTRACT_TAG,
+    };
+    let to_tag = match to_hash {
+        Address::Account(_) => x402_eip712::ACCOUNT_TAG,
+        Address::Contract(_) => x402_eip712::CONTRACT_TAG,
+    };
+    let from_eip712 = x402_eip712::casper_address_from_parts(from_tag, from_hash.value());
+    let to_eip712 = x402_eip712::casper_address_from_parts(to_tag, to_hash.value());
+
+    let auth = x402_eip712::TransferAuthorization {
+        from: from_eip712,
+        to: to_eip712,
+        value: value_bytes,
+        valid_after: valid_after_bytes,
+        valid_before: valid_before_bytes,
+        nonce: nonce_padded,
+    };
+
+    let domain = x402_eip712::x402_domain(chain_name, contract_address.value());
+    casper_eip_712::hash_typed_data(&domain, &auth).to_vec()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,7 +201,7 @@ mod tests {
                 name: TOKEN_NAME.to_string(),
                 decimals: TOKEN_DECIMALS,
                 initial_supply: INITIAL_SUPPLY.into(),
-                chain_name: "test".to_string()
+                chain_name: "test".to_string(),
             },
         );
 
@@ -212,8 +231,8 @@ mod tests {
 
         let amount = U256::from(1_000u64);
         let nonce = make_nonce();
-        let valid_after = 0u64;
-        let valid_before = u64::MAX;
+        let valid_after = U256::from(0u64);
+        let valid_before = U256::from(u64::MAX);
 
         let public_key = env.public_key(&sender);
         let from_hash = AccountHash::from(&public_key);
@@ -228,7 +247,7 @@ mod tests {
             valid_before,
             &nonce,
             "test",
-            contract.address()
+            contract.address(),
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);
@@ -261,8 +280,8 @@ mod tests {
 
         let amount = U256::from(100u64);
         let nonce = make_nonce();
-        let valid_after = 0u64;
-        let valid_before = u64::MAX;
+        let valid_after = U256::from(0u64);
+        let valid_before = U256::from(u64::MAX);
 
         let public_key = env.public_key(&sender);
         let from_hash = AccountHash::from(&public_key);
@@ -277,7 +296,7 @@ mod tests {
             valid_before,
             &nonce,
             "test",
-            contract.address()
+            contract.address(),
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);
@@ -319,8 +338,8 @@ mod tests {
 
         let amount = U256::from(100u64);
         let nonce = make_nonce();
-        let valid_after = 0u64;
-        let valid_before = 0u64; // already expired
+        let valid_after = U256::from(0u64);
+        let valid_before = U256::from(0u64); // already expired
 
         let public_key = env.public_key(&sender);
         let from_hash = AccountHash::from(&public_key);
@@ -335,7 +354,7 @@ mod tests {
             valid_before,
             &nonce,
             "test",
-            contract.address()
+            contract.address(),
         );
         let message_bytes = Bytes::from(message);
         let signature = env.sign_message(&message_bytes, &sender);
@@ -364,8 +383,8 @@ mod tests {
 
         let amount = U256::from(100u64);
         let nonce = make_nonce();
-        let valid_after = 0u64;
-        let valid_before = u64::MAX;
+        let valid_after = U256::from(0u64);
+        let valid_before = U256::from(u64::MAX);
 
         let public_key = env.public_key(&sender);
         let from_hash = AccountHash::from(&public_key);
