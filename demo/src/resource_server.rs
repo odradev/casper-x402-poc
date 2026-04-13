@@ -127,7 +127,7 @@ impl ResourceServerState {
         (
             StatusCode::OK,
             headers,
-            json!({"data": "secret-resource-content: https://odra.dev"}).to_string(),
+            json!({"secret": "https://odra.dev"}).to_string(),
         )
             .into_response()
     }

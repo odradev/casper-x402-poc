@@ -18,7 +18,7 @@ pub struct UiState {
     pub public_key: casper_types::crypto::PublicKey,
     pub resource_url: String,
     pub facilitator_url: String,
-    pub domain: DomainSeparator
+    pub domain: DomainSeparator,
 }
 
 pub async fn handle_index() -> Html<&'static str> {

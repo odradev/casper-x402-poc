@@ -1,10 +1,18 @@
 use casper_types::U256;
+use chrono::DateTime;
 use serde::Serialize;
 use serde_json::json;
 pub use x402_types::{
     CasperAuthorization, PaymentPayload, PaymentRequired, PaymentRequirements, ResourceInfo,
     SettleRequest, SettleResponse,
 };
+
+fn format_timestamp(bytes: &[u8; 32]) -> String {
+    let secs = u64::from_be_bytes(bytes[24..32].try_into().unwrap());
+    DateTime::from_timestamp(secs as i64, 0)
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| secs.to_string())
+}
 
 #[derive(Debug, Serialize)]
 pub struct FlowStep {
@@ -57,8 +65,8 @@ impl FlowStep {
                 "from": x402_eip712::format_casper_address(&authorization.transfer.from),
                 "to": x402_eip712::format_casper_address(&authorization.transfer.to),
                 "amount": U256::from_big_endian(&authorization.transfer.value),
-                "valid_after": authorization.transfer.valid_after,
-                "valid_before": authorization.transfer.valid_before,
+                "valid_after": format_timestamp(&authorization.transfer.valid_after),
+                "valid_before": format_timestamp(&authorization.transfer.valid_before),
                 "nonce": u32::from_be_bytes(authorization.transfer.nonce[0..4].try_into().unwrap())
             }),
         }
@@ -83,7 +91,7 @@ impl FlowStep {
             status: "success".to_string(),
             details: serde_json::json!({
                 "is_valid": true,
-                "payer": format!("account-hash-{}", payer.unwrap_or_default()),
+                "payer": payer.unwrap_or_default(),
             }),
         }
     }
@@ -116,6 +124,8 @@ impl FlowStep {
         body: String,
         payment_response: Option<SettleResponse>,
     ) -> Self {
+        let body_value = serde_json::from_str::<serde_json::Value>(&body)
+            .unwrap_or_else(|_| serde_json::Value::String(body));
         Self {
             step: 4,
             title: "Pay & Access Resource".into(),
@@ -123,7 +133,7 @@ impl FlowStep {
             details: serde_json::json!({
                 "status": status,
                 "payment_response": payment_response,
-                "body": body,
+                "body": body_value,
             }),
         }
     }

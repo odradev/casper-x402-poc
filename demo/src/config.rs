@@ -35,8 +35,9 @@ impl Config {
             .context("Unexpected contract address format")?;
         let mut x402_token_address = [0u8; 32];
         let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
-        x402_token_address.copy_from_slice(&bytes);  
-        let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME").context("Missing ODRA_CASPER_LIVENET_CHAIN_NAME")?;
+        x402_token_address.copy_from_slice(&bytes);
+        let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
+            .context("Missing ODRA_CASPER_LIVENET_CHAIN_NAME")?;
 
         Ok(Self {
             facilitator_url,
@@ -46,7 +47,7 @@ impl Config {
             payment_amount,
             secret_key_path,
             x402_token_address,
-            chain_name
+            chain_name,
         })
     }
 }

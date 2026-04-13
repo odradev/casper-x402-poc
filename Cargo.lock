@@ -845,6 +845,7 @@ dependencies = [
  "base64 0.22.1",
  "casper-eip-712",
  "casper-types",
+ "chrono",
  "dotenv",
  "hex",
  "rand 0.8.5",
