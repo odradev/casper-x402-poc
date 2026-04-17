@@ -83,15 +83,15 @@ pub fn format_casper_address(addr: &Address) -> alloc::string::String {
 }
 /// Build the EIP-712 domain separator for x402.
 pub fn x402_domain(
-    chain_name: &str,
+    chain_id: &str,
     x402_token_address: [u8; 32],
 ) -> casper_eip_712::DomainSeparator {
     casper_eip_712::DomainBuilder::new()
         .name("Cep18x402")
         .version("1")
         .custom_field(
-            "chain_name",
-            casper_eip_712::DomainFieldValue::String(chain_name.into()),
+            "chain_id",
+            casper_eip_712::DomainFieldValue::String(chain_id.into()),
         )
         .custom_field(
             "contract_package_hash",
@@ -105,18 +105,20 @@ pub fn x402_domain(
     not(target_arch = "wasm32"),
     derive(Debug, Clone, serde::Serialize, serde::Deserialize)
 )]
-pub struct TransferAuthorization {
+pub struct TransferWithAuthorization {
     #[cfg_attr(not(target_arch = "wasm32"), serde(with = "serde_address"))]
     pub from: Address, // Key::AccountHash
     #[cfg_attr(not(target_arch = "wasm32"), serde(with = "serde_address"))]
     pub to: Address, // Key::AccountHash
     pub value: [u8; 32],        // U256
+    #[cfg_attr(not(target_arch = "wasm32"), serde(rename = "validAfter"))]
     pub valid_after: [u8; 32],  // U256 (timestamp)
+    #[cfg_attr(not(target_arch = "wasm32"), serde(rename = "validBefore"))]
     pub valid_before: [u8; 32], // U256 (timestamp)
     pub nonce: [u8; 32],
 }
 
-impl casper_eip_712::Eip712Struct for TransferAuthorization {
+impl casper_eip_712::Eip712Struct for TransferWithAuthorization {
     fn type_string() -> &'static str {
         "TransferAuthorization(address from,address to,uint256 value,uint256 valid_after,uint256 valid_before,bytes32 nonce)"
     }

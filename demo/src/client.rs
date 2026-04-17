@@ -48,7 +48,7 @@ pub fn sign_authorization(
     amount.to_big_endian(&mut value_bytes);
     let from_addr = x402_eip712::casper_address_from_bytes(from_hash.0);
     let to_addr = x402_eip712::casper_address_from_bytes(to_hash.0);
-    let transfer = x402_types::TransferAuthorization {
+    let transfer = x402_types::TransferWithAuthorization {
         from: from_addr,
         to: to_addr,
         value: value_bytes,

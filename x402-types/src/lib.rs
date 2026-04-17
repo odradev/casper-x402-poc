@@ -42,7 +42,7 @@ pub struct PaymentRequired {
 /// The signed authorization (all fields hex-encoded bytes).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CasperAuthorization {
-    pub transfer: x402_eip712::TransferAuthorization,
+    pub transfer: x402_eip712::TransferWithAuthorization,
     pub public_key: String,
     pub signature: String,
 }
@@ -105,4 +105,4 @@ pub struct SettleResponse {
 }
 
 use x402_eip712::Address;
-pub use x402_eip712::TransferAuthorization;
+pub use x402_eip712::TransferWithAuthorization;
