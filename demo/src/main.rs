@@ -27,11 +27,11 @@ async fn main() -> Result<()> {
     let (secret_key, public_key) = load_demo_keys_from_file(&config.secret_key_path)?;
     let resource_url = format!("{}/api/data", config.resource_url);
 
-    let pay_to_bytes: [u8; 32] = hex::decode(&config.pay_to)
+    let pay_to_bytes: [u8; 33] = hex::decode(&config.pay_to)
         .map_err(|e| anyhow!("Invalid PAY_TO hex: {}", e))?
         .try_into()
-        .map_err(|_| anyhow!("PAY_TO must be exactly 32 bytes (64 hex chars)"))?;
-    let pay_to = x402_eip712::casper_address_from_bytes(pay_to_bytes);
+        .map_err(|_| anyhow!("PAY_TO must be exactly 33 bytes (66 hex chars)"))?;
+    let pay_to = x402_eip712::Address::Casper(pay_to_bytes);
 
     let requirements = PaymentRequired {
         x402_version: 2,

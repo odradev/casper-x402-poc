@@ -10,7 +10,7 @@ pub const ACCOUNT_TAG: u8 = 0x00;
 pub const CONTRACT_TAG: u8 = 0x01;
 
 /// Create a Casper `Address` from raw 32-byte account-hash bytes (tag byte `0x00`).
-pub fn casper_address_from_bytes(account_hash_bytes: [u8; 32]) -> Address {
+pub fn casper_account_from_bytes(account_hash_bytes: [u8; 32]) -> Address {
     casper_address_from_parts(ACCOUNT_TAG, account_hash_bytes)
 }
 
