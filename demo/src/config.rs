@@ -8,7 +8,7 @@ pub struct Config {
     pub payment_amount: u64,
     pub secret_key_path: String,
     pub x402_token_address: [u8; 32],
-    pub chain_name: String,
+    pub chain_id: String,
 }
 
 impl Config {
@@ -36,8 +36,7 @@ impl Config {
         let mut x402_token_address = [0u8; 32];
         let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
         x402_token_address.copy_from_slice(&bytes);
-        let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
-            .context("Missing ODRA_CASPER_LIVENET_CHAIN_NAME")?;
+        let chain_id = std::env::var("CAIP2_CHAIN_ID").context("Missing CAIP2_CHAIN_ID")?;
 
         Ok(Self {
             facilitator_url,
@@ -47,7 +46,7 @@ impl Config {
             payment_amount,
             secret_key_path,
             x402_token_address,
-            chain_name,
+            chain_id,
         })
     }
 }

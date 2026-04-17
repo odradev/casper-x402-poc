@@ -129,7 +129,7 @@ fn build_message(
     valid_after: U256,
     valid_before: U256,
     nonce: &[u8],
-    chain_name: &str,
+    chain_id: &str,
     contract_address: Address,
 ) -> Vec<u8> {
     let mut value_bytes = [0u8; 32];
@@ -156,7 +156,7 @@ fn build_message(
     let from_eip712 = x402_eip712::casper_address_from_parts(from_tag, from_hash.value());
     let to_eip712 = x402_eip712::casper_address_from_parts(to_tag, to_hash.value());
 
-    let auth = x402_eip712::TransferAuthorization {
+    let auth = x402_eip712::TransferWithAuthorization {
         from: from_eip712,
         to: to_eip712,
         value: value_bytes,
@@ -165,7 +165,7 @@ fn build_message(
         nonce: nonce_padded,
     };
 
-    let domain = x402_eip712::x402_domain(chain_name, contract_address.value());
+    let domain = x402_eip712::x402_domain(chain_id, contract_address.value());
     casper_eip_712::hash_typed_data(&domain, &auth).to_vec()
 }
 

@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
         },
         accepts: vec![PaymentRequirements {
             scheme: "exact".to_string(),
-            network: "casper:test".to_string(),
+            network: "casper:casper-net-1".to_string(),
             asset: "CEP18X402".to_string(),
             amount: config.payment_amount.to_string(),
             pay_to,
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
         public_key,
         resource_url: config.resource_url.clone(),
         facilitator_url: config.facilitator_url.clone(),
-        domain: x402_domain(&config.chain_name, config.x402_token_address),
+        domain: x402_domain(&config.chain_id, config.x402_token_address),
     });
 
     // Resource server router (already has its own state applied)

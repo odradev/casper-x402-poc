@@ -22,12 +22,12 @@ pub async fn x402_domain() -> &'static casper_eip_712::DomainSeparator {
             let x402_token_address_str = x402_token_address_str
                 .strip_prefix("hash-")
                 .expect("Invalid contract format");
-            let chain_name = std::env::var("ODRA_CASPER_LIVENET_CHAIN_NAME")
-                .expect("Missing ODRA_CASPER_LIVENET_CHAIN_NAME");
+            let chain_id = std::env::var("CAIP2_CHAIN_ID")
+                .expect("Missing CAIP2_CHAIN_ID");
             let mut x402_token_address = [0u8; 32];
             let bytes = hex::decode(x402_token_address_str).expect("Invalid address format");
             x402_token_address.copy_from_slice(&bytes);
-            x402_eip712::x402_domain(&chain_name, x402_token_address)
+            x402_eip712::x402_domain(&chain_id, x402_token_address)
         })
         .await
 }
